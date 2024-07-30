@@ -1,0 +1,15 @@
+services:
+  api:
+    restart: always
+    build: .
+    container_name: receipt_processor
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      ENV: "development"
+      DSN: ":memory:"
+      CORS_TRUSTED_ORIGINS: "http://localhost:5173 http://localhost:3000"
+      LIMITER_ENABLED: "false"
+      LIMITER_RPS: 2
+      LIMITER_BURST: 4
