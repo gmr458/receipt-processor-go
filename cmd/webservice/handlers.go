@@ -49,6 +49,11 @@ func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = app.cache.Receipt.SetPointsById(r.Context(), receipt.ID, receipt.CalculateTotalPoints())
+	if err != nil {
+		app.logError(r, err)
+	}
+
 	app.sendJSON(w, http.StatusCreated, envelope{
 		"id": receipt.ID,
 	}, nil)
@@ -63,13 +68,30 @@ func (app *app) handlerGetPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	points, err := app.cache.Receipt.GetPointsById(r.Context(), id)
+	if nil == err {
+		app.sendJSON(w, http.StatusOK, envelope{
+			"points": points,
+		}, nil)
+		return
+	} else {
+		if domain.ErrorCode(err) != domain.ENOTFOUND {
+			app.logError(r, err)
+		}
+	}
+
 	receipt, err := app.service.Receipt.FindById(r.Context(), id)
 	if err != nil {
 		app.errorResponse(w, r, err)
 		return
 	}
 
-	points := receipt.CalculateTotalPoints()
+	points = receipt.CalculateTotalPoints()
+
+	err = app.cache.Receipt.SetPointsById(r.Context(), receipt.ID, points)
+	if err != nil {
+		app.logError(r, err)
+	}
 
 	app.sendJSON(w, http.StatusOK, envelope{
 		"points": points,

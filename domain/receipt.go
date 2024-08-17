@@ -21,6 +21,11 @@ type ReceiptService interface {
 	Create(ctx context.Context, receipt *Receipt) error
 }
 
+type ReceiptCache interface {
+	GetPointsById(ctx context.Context, id string) (int, error)
+	SetPointsById(ctx context.Context, id string, points int) error
+}
+
 // GetPointsRetailerName returns one point for every alphanumeric character in the retailer name.
 func (r Receipt) GetPointsRetailerName() int {
 	points := 0
