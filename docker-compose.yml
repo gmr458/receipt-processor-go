@@ -13,3 +13,12 @@ services:
       LIMITER_ENABLED: "false"
       LIMITER_RPS: 2
       LIMITER_BURST: 4
+      REDIS_ADDR: receipt_processor_redis:6379
+      REDIS_PASSWORD: receipt_processor_redis
+  receipt_processor_redis:
+    restart: always
+    image: redis:7.2.5-alpine3.20
+    container_name: receipt_processor_redis
+    command: /bin/sh -c "redis-server --requirepass receipt_processor_redis"
+    ports:
+      - "6379:6379"
