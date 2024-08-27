@@ -13,6 +13,18 @@ type config struct {
 		dsn string
 	}
 
+	// Redis Config
+	redis struct {
+		// Redis's address
+		addr string
+
+		// Redis's password
+		password string
+
+		// Redis's db
+		db int
+	}
+
 	// Limit Rate Config
 	limiter struct {
 		enabled bool

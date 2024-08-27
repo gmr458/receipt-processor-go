@@ -30,6 +30,10 @@ func main() {
 	cfg.limiter.rps = env.GetenvFloat("LIMITER_RPS")
 	cfg.limiter.burst = env.GetenvInt("LIMITER_BURST")
 
+	cfg.redis.addr = env.Getenv("REDIS_ADDR")
+	cfg.redis.password = env.Getenv("REDIS_PASSWORD")
+	cfg.redis.db = env.GetenvInt("REDIS_DB")
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	sqliteConn, err := sqlite.NewConn(cfg.db.dsn, logger)
@@ -39,12 +43,11 @@ func main() {
 	}
 	logger.Info("sqlite3 connection stablished")
 
-	opt, err := redis.ParseURL("redis://localhost:6379/1")
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-	redisClient := redis.NewClient(opt)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     cfg.redis.addr,
+		Password: cfg.redis.password,
+		DB:       cfg.redis.db,
+	})
 	err = redisClient.Ping(context.Background()).Err()
 	if err != nil {
 		logger.Error(err.Error())
