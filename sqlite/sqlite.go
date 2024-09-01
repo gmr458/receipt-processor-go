@@ -23,57 +23,58 @@ type Conn struct {
 	ctx    context.Context
 	cancel func()
 	Dsn    string
+	logger logger.Logger
 }
 
 func NewConn(dsn string, log logger.Logger) (*Conn, error) {
-	conn := &Conn{Dsn: dsn}
+	conn := &Conn{Dsn: dsn, logger: log}
 	conn.ctx, conn.cancel = context.WithCancel(context.Background())
 
 	if conn.Dsn == "" {
 		err := fmt.Errorf("sqlite3 dsn required")
-		log.Error(err.Error())
+		conn.logger.Error(err.Error())
 		return nil, err
 	}
 
 	if conn.Dsn != ":memory:" {
 		pathdir := filepath.Dir(conn.Dsn)
 		if err := os.MkdirAll(pathdir, 0700); err != nil {
-			log.Error(err.Error())
+			conn.logger.Error(err.Error())
 			return nil, err
 		}
-		log.Info("sqlite3 database file created")
+		conn.logger.Info("sqlite3 database file created")
 	} else {
-		log.Info("using sqlite3 in memory database")
+		conn.logger.Info("using sqlite3 in memory database")
 	}
 
 	var err error
 	conn.DB, err = sql.Open("sqlite3", conn.Dsn)
 	if err != nil {
-		log.Error(err.Error())
+		conn.logger.Error(err.Error())
 		return nil, err
 	}
-	log.Info("sqlite3 database connection opened")
+	conn.logger.Info("sqlite3 database connection opened")
 
 	if _, err := conn.DB.Exec(`PRAGMA journal_mode = wal;`); err != nil {
 		err = fmt.Errorf("error applying journal_mode = wal: %w", err)
-		log.Error(err.Error())
+		conn.logger.Error(err.Error())
 		return nil, err
 	}
-	log.Info("journal_mode = wal applied")
+	conn.logger.Info("journal_mode = wal applied")
 
 	if _, err := conn.DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
 		err = fmt.Errorf("error enabling foreign keys: %w", err)
-		log.Error(err.Error())
+		conn.logger.Error(err.Error())
 		return nil, err
 	}
-	log.Info("foreign keys enabled")
+	conn.logger.Info("foreign keys enabled")
 
 	if err := conn.migrate(); err != nil {
 		err = fmt.Errorf("migration error: %w", err)
-		log.Error(err.Error())
+		conn.logger.Error(err.Error())
 		return nil, err
 	}
-	log.Info("successful migration")
+	conn.logger.Info("successful migration")
 
 	return conn, nil
 }
