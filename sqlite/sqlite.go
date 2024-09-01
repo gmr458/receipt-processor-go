@@ -9,14 +9,35 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/gmr458/receipt-processor/logger"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+
+var (
+	receiptCountGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "receipt_processor",
+			Name:      "receipt_count",
+			Help:      "Number of receipts created.",
+		},
+	)
+
+	itemCountGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "receipt_processor",
+			Name:      "item_count",
+			Help:      "Number of items created.",
+		},
+	)
+)
 
 type Conn struct {
 	DB     *sql.DB
@@ -82,6 +103,8 @@ func NewConn(dsn string, log logger.Logger) (*Conn, error) {
 		return nil, err
 	}
 	conn.logger.Info("successful ping")
+
+	go conn.monitor()
 
 	return conn, nil
 }
@@ -154,4 +177,47 @@ func (conn *Conn) Close() error {
 	}
 
 	return nil
+}
+
+func (conn *Conn) updateStats(ctx context.Context) error {
+	tx, err := conn.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	var n int
+
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM receipt`).Scan(&n)
+	if err != nil {
+		return err
+	}
+	receiptCountGauge.Set(float64(n))
+
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM item`).Scan(&n)
+	if err != nil {
+		return err
+	}
+	itemCountGauge.Set(float64(n))
+
+	return nil
+}
+
+func (conn *Conn) monitor() {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-conn.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := conn.updateStats(conn.ctx); err != nil {
+				err = fmt.Errorf("error updating stats: %w", err)
+				conn.logger.Error(err.Error())
+			}
+		}
+	}
 }

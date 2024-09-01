@@ -13,6 +13,7 @@ type app struct {
 	config  config
 	logger  logger.Logger
 	server  *http.Server
+	debugServer *http.Server
 	service service.Service
 	cache   cache.Cache
 	wg      sync.WaitGroup

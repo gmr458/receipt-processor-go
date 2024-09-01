@@ -4,6 +4,9 @@ type config struct {
 	// HTTP Server's port
 	port int
 
+	// HTTP Debug Server's port
+	debugPort int
+
 	// Application Environment (development|staging|production)
 	env string
 

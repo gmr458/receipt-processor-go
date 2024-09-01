@@ -5,8 +5,10 @@ services:
     container_name: receipt_processor_restapi
     ports:
       - "4000:4000"
+      - "4001:4001"
     environment:
       PORT: 4000
+      DEBUG_PORT: 4001
       ENV: "development"
       DSN: "/app/database.db"
       CORS_TRUSTED_ORIGINS: "http://localhost:5173 http://localhost:3000"
@@ -23,3 +25,22 @@ services:
     command: /bin/sh -c "redis-server --requirepass receipt_processor_redis"
     ports:
       - "6379:6379"
+  receipt_processor_prometheus:
+    restart: always
+    image: prom/prometheus:v2.54.0
+    container_name: receipt_processor_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  receipt_processor_grafana:
+    restart: always
+    image: grafana/grafana:11.1.4
+    container_name: receipt_processor_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: receipt_processor_grafana
+      GF_SECURITY_ADMIN_PASSWORD: receipt_processor_grafana
+    volumes:
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml

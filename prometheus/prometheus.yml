@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+
+rule_files:
+
+scrape_configs:
+  - job_name: receipt_processor_restapi
+    static_configs:
+      - targets: ["receipt_processor_restapi:4001"]

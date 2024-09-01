@@ -22,6 +22,6 @@ WORKDIR /app/
 
 COPY --from=builder /usr/src/app/webservice /app/webservice
 
-EXPOSE 4000
+EXPOSE 4000 4001
 
 CMD ["/app/webservice"]

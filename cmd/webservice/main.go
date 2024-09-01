@@ -19,6 +19,8 @@ func main() {
 	var cfg config
 
 	cfg.port = env.GetenvInt("PORT")
+	cfg.debugPort = env.GetenvInt("DEBUG_PORT")
+
 	cfg.env = env.Getenv("ENV")
 
 	cfg.db.dsn = env.Getenv("DSN")
@@ -61,6 +63,15 @@ func main() {
 		service: service.New(sqliteConn),
 		cache:   cache.New(redisClient),
 	}
+
+	go func() {
+		err := app.serveDebug()
+		if err != nil {
+			logger.Error(err.Error())
+			os.Exit(1)
+		}
+	}()
+
 	err = app.serve()
 	if err != nil {
 		logger.Error(err.Error())
