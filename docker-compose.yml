@@ -8,7 +8,7 @@ services:
     environment:
       PORT: 4000
       ENV: "development"
-      DSN: ":memory:"
+      DSN: "/app/database.db"
       CORS_TRUSTED_ORIGINS: "http://localhost:5173 http://localhost:3000"
       LIMITER_ENABLED: "false"
       LIMITER_RPS: 2
