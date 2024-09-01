@@ -81,6 +81,7 @@ func NewConn(dsn string, log logger.Logger) (*Conn, error) {
 		conn.logger.Error(err.Error())
 		return nil, err
 	}
+	conn.logger.Info("successful ping")
 
 	return conn, nil
 }
