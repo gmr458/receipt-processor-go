@@ -76,6 +76,12 @@ func NewConn(dsn string, log logger.Logger) (*Conn, error) {
 	}
 	conn.logger.Info("successful migration")
 
+	if err := conn.DB.Ping(); err != nil {
+		err = fmt.Errorf("sqlite ping error: %w", err)
+		conn.logger.Error(err.Error())
+		return nil, err
+	}
+
 	return conn, nil
 }
 
