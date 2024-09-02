@@ -59,8 +59,8 @@ func main() {
 	logger.Info("redis connection stablished")
 
 	app := &app{
-		config:  cfg,
-		logger:  logger,
+		config: cfg,
+		logger: logger,
 		service: service.New(
 			repository.New(sqliteConn),
 			cache.New(redisClient),

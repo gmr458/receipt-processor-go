@@ -9,10 +9,10 @@ import (
 )
 
 type app struct {
-	config  config
-	logger  logger.Logger
-	server  *http.Server
+	config      config
+	logger      logger.Logger
+	server      *http.Server
 	debugServer *http.Server
-	service service.Service
-	wg      sync.WaitGroup
+	service     service.Service
+	wg          sync.WaitGroup
 }
