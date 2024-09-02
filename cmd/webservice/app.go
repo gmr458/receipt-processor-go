@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gmr458/receipt-processor/cache"
 	"github.com/gmr458/receipt-processor/logger"
 	"github.com/gmr458/receipt-processor/service"
 )
@@ -15,6 +14,5 @@ type app struct {
 	server  *http.Server
 	debugServer *http.Server
 	service service.Service
-	cache   cache.Cache
 	wg      sync.WaitGroup
 }

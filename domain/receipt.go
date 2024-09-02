@@ -16,7 +16,7 @@ type Receipt struct {
 	Items        []Item    `json:"items"`
 }
 
-type ReceiptService interface {
+type ReceiptRepository interface {
 	FindById(ctx context.Context, id string) (*Receipt, error)
 	Create(ctx context.Context, receipt *Receipt) error
 }
@@ -24,6 +24,11 @@ type ReceiptService interface {
 type ReceiptCache interface {
 	GetPointsById(ctx context.Context, id string) (int, error)
 	SetPointsById(ctx context.Context, id string, points int) error
+}
+
+type ReceiptService interface {
+	Process(ctx context.Context, dto *ReceiptDTO) (*Receipt, error)
+	GetPointsById(ctx context.Context, id string) (int, error)
 }
 
 // GetPointsRetailerName returns one point for every alphanumeric character in the retailer name.

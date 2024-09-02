@@ -2,155 +2,73 @@ package service
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"strings"
 	"time"
 
 	"github.com/gmr458/receipt-processor/domain"
-	"github.com/gmr458/receipt-processor/sqlite"
+	"github.com/google/uuid"
 )
 
 type ReceiptService struct {
-	sqliteConn *sqlite.Conn
+	repository domain.ReceiptRepository
+	cache      domain.ReceiptCache
 }
 
-func (s ReceiptService) FindById(ctx context.Context, id string) (*domain.Receipt, error) {
-	tx, err := s.sqliteConn.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
+func NewReceiptService(repository domain.ReceiptRepository, cache domain.ReceiptCache) *ReceiptService {
+	return &ReceiptService{
+		repository,
+		cache,
 	}
-	defer func() { _ = tx.Rollback() }()
+}
 
-	queryReceipt := `
-        SELECT
-            id,
-            retailer,
-            purchase_date,
-            purchase_time,
-            total
-        FROM receipt
-        WHERE id = ?
-    `
-	receipt := domain.Receipt{Items: []domain.Item{}}
-	var timeStr string
-	var dateStr string
-	row := tx.QueryRow(queryReceipt, id)
-	err = row.Scan(
-		&receipt.ID,
-		&receipt.Retailer,
-		&dateStr,
-		&timeStr,
-		&receipt.Total,
-	)
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, &domain.Error{Code: domain.ENOTFOUND, Message: "Receipt not found"}
-		default:
-			return nil, err
+func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*domain.Receipt, error) {
+	receipt := &domain.Receipt{
+		ID:       uuid.New().String(),
+		Retailer: dto.Retailer,
+		Total:    dto.Total,
+		Items:    []domain.Item{},
+	}
+	receipt.PurchaseDate, _ = time.Parse("2006-01-02", dto.PurchaseDate)
+	receipt.PurchaseTime, _ = time.Parse("15:04", dto.PurchaseTime)
+
+	for _, itemDto := range dto.Items {
+		item := domain.Item{
+			ID:               uuid.New().String(),
+			ShortDescription: itemDto.ShortDescription,
+			Price:            itemDto.Price,
 		}
-	}
-	dateParsed, err := time.Parse("2006-01-02", dateStr)
-	if err != nil {
-		return nil, err
-	}
-	timeParsed, err := time.Parse("15:04", timeStr)
-	if err != nil {
-		return nil, err
-	}
-	receipt.PurchaseDate = dateParsed
-	receipt.PurchaseTime = timeParsed
-
-	queryItems := `
-        SELECT
-            id,
-            short_description,
-            price,
-            receipt_id
-        FROM item
-        WHERE receipt_id = ?
-    `
-	rows, err := tx.QueryContext(ctx, queryItems, receipt.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var item domain.Item
-		err = rows.Scan(
-			&item.ID,
-			&item.ShortDescription,
-			&item.Price,
-			&item.ReceiptID,
-		)
-		if err != nil {
-			return nil, err
-		}
-
 		receipt.Items = append(receipt.Items, item)
 	}
-	err = rows.Err()
+
+	err := s.repository.Create(ctx, receipt)
 	if err != nil {
 		return nil, err
 	}
 
-	err = tx.Commit()
+	err = s.cache.SetPointsById(ctx, receipt.ID, receipt.CalculateTotalPoints())
 	if err != nil {
 		return nil, err
 	}
 
-	return &receipt, nil
+	return receipt, nil
 }
 
-func (s ReceiptService) Create(ctx context.Context, receipt *domain.Receipt) error {
-	tx, err := s.sqliteConn.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	queryReceipt := `
-        INSERT INTO receipt (
-            id,
-            retailer,
-            purchase_date,
-            purchase_time,
-            total
-        ) VALUES (?, ?, ?, ?, ?)
-    `
-	args := []any{
-		receipt.ID,
-		receipt.Retailer,
-		receipt.PurchaseDate.Format("2006-01-02"),
-		receipt.PurchaseTime.Format("15:04"),
-		receipt.Total,
-	}
-	_, err = tx.ExecContext(ctx, queryReceipt, args...)
-	if err != nil {
-		return err
+func (s *ReceiptService) GetPointsById(ctx context.Context, id string) (int, error) {
+	points, err := s.cache.GetPointsById(ctx, id)
+	if nil == err {
+		return points, nil
 	}
 
-	argsItems := []any{}
-	var queryItems strings.Builder
-	queryItems.WriteString("INSERT INTO item (id, short_description, price, receipt_id) VALUES ")
-	for k, v := range receipt.Items {
-		if k > 0 {
-			queryItems.WriteString(",")
-		}
-		queryItems.WriteString("(?,?,?,?)")
-		argsItems = append(argsItems, v.ID, v.ShortDescription, v.Price, receipt.ID)
-	}
-	_, err = tx.ExecContext(ctx, queryItems.String(), argsItems...)
+	receipt, err := s.repository.FindById(ctx, id)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	err = tx.Commit()
+	points = receipt.CalculateTotalPoints()
+
+	err = s.cache.SetPointsById(ctx, receipt.ID, points)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return points, nil
 }

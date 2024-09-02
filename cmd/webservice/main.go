@@ -11,6 +11,7 @@ import (
 
 	"github.com/gmr458/receipt-processor/cache"
 	"github.com/gmr458/receipt-processor/env"
+	"github.com/gmr458/receipt-processor/repository"
 	"github.com/gmr458/receipt-processor/service"
 	"github.com/gmr458/receipt-processor/sqlite"
 )
@@ -60,8 +61,10 @@ func main() {
 	app := &app{
 		config:  cfg,
 		logger:  logger,
-		service: service.New(sqliteConn),
-		cache:   cache.New(redisClient),
+		service: service.New(
+			repository.New(sqliteConn),
+			cache.New(redisClient),
+		),
 	}
 
 	go func() {
