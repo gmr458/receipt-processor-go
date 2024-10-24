@@ -53,6 +53,11 @@ func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*
 }
 
 func (s *ReceiptService) GetPointsById(ctx context.Context, id string) (int, error) {
+	err := uuid.Validate(id)
+	if err != nil {
+		return 0, &domain.Error{Code: domain.ENOTFOUND, Message: "Receipt not found"}
+	}
+
 	points, err := s.cache.GetPointsById(ctx, id)
 	if nil == err {
 		return points, nil
