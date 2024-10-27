@@ -1,8 +1,6 @@
 package main
 
-import (
-	"net/http"
-)
+import "net/http"
 
 func (api *app) badRequest(w http.ResponseWriter, errMsg string, details map[string]string) {
 	api.sendJSON(w, http.StatusBadRequest, envelope{"error": errMsg, "details": details}, nil)

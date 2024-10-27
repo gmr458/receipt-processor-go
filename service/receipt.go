@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/gmr458/receipt-processor/domain"
 	"github.com/google/uuid"
+
+	"github.com/gmr458/receipt-processor/domain"
 )
 
 type ReceiptService struct {
