@@ -9,7 +9,7 @@ import (
 )
 
 type ReceiptDTO struct {
-	Validator    *validator.Validator
+	Validator    *validator.Validator `json:"-"`
 	Retailer     string    `json:"retailer"`
 	PurchaseDate string    `json:"purchaseDate"`
 	PurchaseTime string    `json:"purchaseTime"`
