@@ -14,8 +14,8 @@ type ReceiptService struct {
 	cache      domain.ReceiptCache
 }
 
-func NewReceiptService(repository domain.ReceiptRepository, cache domain.ReceiptCache) *ReceiptService {
-	return &ReceiptService{
+func NewReceiptService(repository domain.ReceiptRepository, cache domain.ReceiptCache) ReceiptService {
+	return ReceiptService{
 		repository,
 		cache,
 	}
