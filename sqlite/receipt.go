@@ -1,4 +1,4 @@
-package repository
+package sqlite
 
 import (
 	"context"
@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/gmr458/receipt-processor/domain"
-	"github.com/gmr458/receipt-processor/sqlite"
 )
 
 type ReceiptRepository struct {
-	sqliteConn *sqlite.Conn
+	conn *Conn
 }
 
 func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Receipt, error) {
-	tx, err := r.sqliteConn.DB.BeginTx(ctx, nil)
+	tx, err := r.conn.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,7 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
 }
 
 func (r ReceiptRepository) Create(ctx context.Context, receipt *domain.Receipt) error {
-	tx, err := r.sqliteConn.DB.BeginTx(ctx, nil)
+	tx, err := r.conn.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

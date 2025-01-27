@@ -9,9 +9,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/gmr458/receipt-processor/cache"
 	"github.com/gmr458/receipt-processor/env"
-	"github.com/gmr458/receipt-processor/repository"
 	"github.com/gmr458/receipt-processor/service"
 	"github.com/gmr458/receipt-processor/sqlite"
 )
@@ -62,8 +60,8 @@ func main() {
 		config: cfg,
 		logger: logger,
 		service: service.New(
-			repository.New(sqliteConn),
-			cache.New(redisClient),
+			sqliteConn,
+			redisClient,
 		),
 	}
 

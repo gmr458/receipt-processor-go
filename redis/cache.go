@@ -1,4 +1,4 @@
-package cache
+package redis
 
 import (
 	"time"
@@ -12,7 +12,7 @@ type Cache struct {
 	Receipt domain.ReceiptCache
 }
 
-func New(redisClient *redis.Client) Cache {
+func NewCache(redisClient *redis.Client) Cache {
 	return Cache{
 		Receipt: ReceiptCache{redisClient, 2 * time.Hour},
 	}
