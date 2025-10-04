@@ -4,11 +4,10 @@ import (
 	"net/http"
 
 	"github.com/gmr458/receipt-processor/domain"
-	"github.com/gmr458/receipt-processor/validator"
 )
 
 func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
-	input := domain.ReceiptDTO{Validator: validator.New()}
+	input := domain.NewReceiptDTO()
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
@@ -16,13 +15,7 @@ func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input.Validate()
-	if !input.Validator.Ok() {
-		app.badRequest(w, "Invalid field/s", input.Validator.Errors)
-		return
-	}
-
-	receipt, err := app.service.Receipt.Process(r.Context(), &input)
+	receipt, err := app.service.Receipt.Process(r.Context(), input)
 	if err != nil {
 		app.errorResponse(w, r, err)
 		return

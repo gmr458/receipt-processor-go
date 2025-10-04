@@ -36,11 +36,15 @@ func (app *app) logError(r *http.Request, err error) {
 func (app *app) errorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	code := domain.ErrorCode(err)
 	message := domain.ErrorMessage(err)
+	details := domain.ErrorDetails(err)
 
 	if code == domain.EINTERNAL {
 		app.logError(r, err)
 	}
 
 	status := errorStatusCode(code)
-	app.sendJSON(w, status, envelope{"error": message}, nil)
+	app.sendJSON(w, status, envelope{
+		"message": message,
+		"details": details,
+	}, nil)
 }

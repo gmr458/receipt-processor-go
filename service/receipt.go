@@ -22,6 +22,15 @@ func NewReceiptService(repository domain.ReceiptRepository, cache domain.Receipt
 }
 
 func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*domain.Receipt, error) {
+	dto.Validate()
+	if !dto.Validator.Ok() {
+		return nil, &domain.Error{
+			Code:    domain.EINVALID,
+			Message: "Invalid field/s",
+			Details: dto.Validator.Errors,
+		}
+	}
+
 	receipt := &domain.Receipt{
 		ID:       uuid.New().String(),
 		Retailer: dto.Retailer,

@@ -18,6 +18,12 @@ type ReceiptDTO struct {
 	Items        []ItemDTO `json:"items"`
 }
 
+func NewReceiptDTO() *ReceiptDTO {
+	return &ReceiptDTO{
+		Validator: validator.New(),
+	}
+}
+
 func (dto *ReceiptDTO) Validate() {
 	dto.ValidateRetailer()
 	dto.ValidatePurchaseDate()

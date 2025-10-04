@@ -36,6 +36,9 @@ type Error struct {
 
 	// Human-readable error message.
 	Message string
+
+	// Specific details about the error that can be useful to the client.
+	Details map[string]string
 }
 
 // Error implements the error interface. Not used by the application otherwise.
@@ -69,6 +72,18 @@ func ErrorMessage(err error) string {
 	}
 
 	return "internal error"
+}
+
+func ErrorDetails(err error) map[string]string {
+	var e *Error
+
+	if nil == err {
+		return nil
+	} else if errors.As(err, &e) {
+		return e.Details
+	}
+
+	return nil
 }
 
 // Errorf is a helper function to return an Error with a given code and formatted message.
