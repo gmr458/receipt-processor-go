@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -13,6 +15,8 @@ import (
 	"github.com/gmr458/receipt-processor/service"
 	"github.com/gmr458/receipt-processor/sqlite"
 )
+
+var version string
 
 func main() {
 	var cfg config
@@ -34,6 +38,14 @@ func main() {
 	cfg.redis.addr = env.Getenv("REDIS_ADDR")
 	cfg.redis.password = env.Getenv("REDIS_PASSWORD")
 	cfg.redis.db = env.GetenvInt("REDIS_DB")
+
+	displayVersion := flag.Bool("version", false, "Display version")
+	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("version: %s", version)
+		os.Exit(0)
+	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
