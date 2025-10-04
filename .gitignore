@@ -1,4 +1,18 @@
-.env
-*.db
-*-shm
-*-wal
+# Ignore everything
+*
+
+# But not these files...
+!/.gitignore
+
+!*.go
+!go.sum
+!go.mod
+!*.sql
+!*.json
+!*.yaml
+!*.yml
+!Dockerfile
+!Makefile
+
+# ...even if they are in subdirectories
+!*/
