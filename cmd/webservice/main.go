@@ -19,6 +19,14 @@ import (
 var version string
 
 func main() {
+	displayVersion := flag.Bool("version", false, "Display version")
+	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("version: %s", version)
+		os.Exit(0)
+	}
+
 	var cfg config
 
 	cfg.port = env.GetenvInt("PORT")
@@ -38,14 +46,6 @@ func main() {
 	cfg.redis.addr = env.Getenv("REDIS_ADDR")
 	cfg.redis.password = env.Getenv("REDIS_PASSWORD")
 	cfg.redis.db = env.GetenvInt("REDIS_DB")
-
-	displayVersion := flag.Bool("version", false, "Display version")
-	flag.Parse()
-
-	if *displayVersion {
-		fmt.Printf("version: %s", version)
-		os.Exit(0)
-	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
