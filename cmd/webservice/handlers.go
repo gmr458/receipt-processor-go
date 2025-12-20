@@ -7,7 +7,7 @@ import (
 )
 
 func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
-	input := domain.NewReceiptDTO()
+	var input domain.ReceiptDTO
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
@@ -44,4 +44,29 @@ func (app *app) handlerGetPoints(w http.ResponseWriter, r *http.Request) {
 	app.sendJSON(w, http.StatusOK, envelope{
 		"points": points,
 	}, nil)
+}
+
+func (app *app) handlerGetReceipts(w http.ResponseWriter, r *http.Request) {
+	queryValues := r.URL.Query()
+	filters := domain.NewFilters(
+		"id",
+		"-id",
+		"retailer",
+		"-retailer",
+		"purchase_date",
+		"-purchase_date",
+		"total",
+		"-total",
+	)
+	filters.Page = getURLValuePositiveInt(queryValues, "page", 1)
+	filters.Limit = getURLValuePositiveInt(queryValues, "limit", 10)
+	filters.Sort = getURLValueStr(queryValues, filters.SortSafeList, "sort", "purchase_date")
+
+	paginatedReceipts, err := app.service.Receipt.GetReceipts(r.Context(), filters)
+	if err != nil {
+		app.errorResponse(w, r, err)
+		return
+	}
+
+	app.sendJSON(w, http.StatusOK, paginatedReceipts, nil)
 }

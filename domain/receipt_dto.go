@@ -9,8 +9,6 @@ import (
 )
 
 type ReceiptDTO struct {
-	Validator *validator.Validator `json:"-"`
-
 	Retailer     string    `json:"retailer"`
 	PurchaseDate string    `json:"purchaseDate"`
 	PurchaseTime string    `json:"purchaseTime"`
@@ -18,59 +16,60 @@ type ReceiptDTO struct {
 	Items        []ItemDTO `json:"items"`
 }
 
-func NewReceiptDTO() *ReceiptDTO {
-	return &ReceiptDTO{
-		Validator: validator.New(),
-	}
+func (dto ReceiptDTO) IsValid() (bool, map[string]string) {
+	v := validator.New()
+
+	dto.ValidateRetailer(v)
+	dto.ValidatePurchaseDate(v)
+	dto.ValidatePurchaseTime(v)
+	dto.ValidateTotal(v)
+	dto.ValidateItems(v)
+	dto.ValidateTotalEqualItemsTotal(v)
+
+	return v.Ok(), v.Errors
 }
 
-func (dto *ReceiptDTO) Validate() {
-	dto.ValidateRetailer()
-	dto.ValidatePurchaseDate()
-	dto.ValidatePurchaseTime()
-	dto.ValidateTotal()
-	dto.ValidateItems()
-	dto.ValidateTotalEqualItemsTotal()
-}
-
-func (dto *ReceiptDTO) ValidateRetailer() {
+func (dto ReceiptDTO) ValidateRetailer(v *validator.Validator) {
 	const key = "retailer"
 	const maxLen = 50
 	retailerLen := len(dto.Retailer)
 
-	dto.Validator.Check(dto.Retailer != "", key, "retailer cannot be empty")
-	dto.Validator.Check(retailerLen <= maxLen, key, fmt.Sprintf("retailer max length is %d characters", maxLen))
+	v.Check(dto.Retailer != "", key, "retailer cannot be empty")
+	v.Check(retailerLen <= maxLen, key, fmt.Sprintf("retailer max length is %d characters", maxLen))
 }
 
-func (dto *ReceiptDTO) ValidatePurchaseDate() {
+func (dto ReceiptDTO) ValidatePurchaseDate(v *validator.Validator) {
 	const key = "purchaseDate"
 	_, err := time.Parse("2006-01-02", dto.PurchaseDate)
-	dto.Validator.Check(err == nil, key, "invalid format, it should be YYYY-MM-DD")
+	v.Check(err == nil, key, "invalid format, it should be YYYY-MM-DD")
 }
 
-func (dto *ReceiptDTO) ValidatePurchaseTime() {
+func (dto ReceiptDTO) ValidatePurchaseTime(v *validator.Validator) {
 	const key = "purchaseTime"
 	_, err := time.Parse("15:04", dto.PurchaseTime)
-	dto.Validator.Check(err == nil, key, "invalid format, it should be hh:mm")
+	v.Check(err == nil, key, "invalid format, it should be hh:mm")
 }
 
-func (dto *ReceiptDTO) ValidateTotal() {
+func (dto ReceiptDTO) ValidateTotal(v *validator.Validator) {
 	const key = "total"
 
-	dto.Validator.Check(dto.Total > 0.0, key, "the total must be greater than 0.0")
+	v.Check(dto.Total > 0.0, key, "the total must be greater than 0.0")
 }
 
-func (dto *ReceiptDTO) ValidateItems() {
+func (dto ReceiptDTO) ValidateItems(v *validator.Validator) {
 	const key = "items"
 	const maxLenShortDesc = 100
 
+	v.Check(dto.Items != nil, key, "items cannot be null")
+	v.Check(len(dto.Items) != 0, key, "items cannot be empty")
+
 	for _, item := range dto.Items {
 		lenShortDesc := len(item.ShortDescription)
-		dto.Validator.Check(item.ShortDescription != "",
+		v.Check(item.ShortDescription != "",
 			key,
 			"there are one or more items that have an empty shortDescription",
 		)
-		dto.Validator.Check(
+		v.Check(
 			lenShortDesc <= maxLenShortDesc,
 			key,
 			fmt.Sprintf(
@@ -78,7 +77,7 @@ func (dto *ReceiptDTO) ValidateItems() {
 				maxLenShortDesc,
 			),
 		)
-		dto.Validator.Check(
+		v.Check(
 			item.Price > 0.0,
 			key,
 			"there is one or more items that have a price of zero or less",
@@ -86,7 +85,7 @@ func (dto *ReceiptDTO) ValidateItems() {
 	}
 }
 
-func (dto *ReceiptDTO) ValidateTotalEqualItemsTotal() {
+func (dto ReceiptDTO) ValidateTotalEqualItemsTotal(v *validator.Validator) {
 	const key = "total"
 
 	itemsTotal := 0.0
@@ -102,5 +101,5 @@ func (dto *ReceiptDTO) ValidateTotalEqualItemsTotal() {
 		dto.Total,
 		itemsTotal,
 	)
-	dto.Validator.Check(totalFormatted == itemsTotalFormatted, key, message)
+	v.Check(totalFormatted == itemsTotalFormatted, key, message)
 }

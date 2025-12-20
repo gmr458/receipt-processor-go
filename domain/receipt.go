@@ -17,13 +17,21 @@ type Receipt struct {
 }
 
 type ReceiptRepository interface {
+	Find(ctx context.Context, filters Filters) (PaginatedReceipts, error)
 	FindById(ctx context.Context, id string) (*Receipt, error)
 	Create(ctx context.Context, receipt *Receipt) error
 }
 
 type ReceiptCache interface {
+	SetPaginatedReceipts(ctx context.Context, key string, paginatedReceipts PaginatedReceipts) error
+	GetPaginatedReceipts(ctx context.Context, key string) (PaginatedReceipts, error)
 	GetPointsById(ctx context.Context, id string) (int, error)
 	SetPointsById(ctx context.Context, id string, points int) error
+}
+
+type PaginatedReceipts struct {
+	Receipts []Receipt `json:"receipts"`
+	Metadata *Metadata `json:"metadata"`
 }
 
 // GetPointsRetailerName returns one point for every alphanumeric character in the retailer name.

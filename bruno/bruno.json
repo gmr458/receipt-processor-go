@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "receipt-processor-go",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

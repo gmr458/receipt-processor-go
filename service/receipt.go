@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,13 +22,13 @@ func NewReceiptService(repository domain.ReceiptRepository, cache domain.Receipt
 	}
 }
 
-func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*domain.Receipt, error) {
-	dto.Validate()
-	if !dto.Validator.Ok() {
+func (s *ReceiptService) Process(ctx context.Context, dto domain.ReceiptDTO) (*domain.Receipt, error) {
+	isValid, errors := dto.IsValid()
+	if !isValid {
 		return nil, &domain.Error{
 			Code:    domain.EINVALID,
 			Message: "Invalid field/s",
-			Details: dto.Validator.Errors,
+			Details: errors,
 		}
 	}
 
@@ -37,8 +38,29 @@ func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*
 		Total:    dto.Total,
 		Items:    []domain.Item{},
 	}
-	receipt.PurchaseDate, _ = time.Parse("2006-01-02", dto.PurchaseDate)
-	receipt.PurchaseTime, _ = time.Parse("15:04", dto.PurchaseTime)
+	parsedDate, err := time.Parse("2006-01-02", dto.PurchaseDate)
+	if err != nil {
+		return nil, &domain.Error{
+			Code:    domain.EINVALID,
+			Message: "Invalid field/s",
+			Details: map[string]string{
+				"purchaseDate": "invalid format, it should be YYYY-MM-DD",
+			},
+		}
+	}
+	receipt.PurchaseDate = parsedDate
+
+	parsedTime, err := time.Parse("15:04", dto.PurchaseTime)
+	if err != nil {
+		return nil, &domain.Error{
+			Code:    domain.EINVALID,
+			Message: "Invalid field/s",
+			Details: map[string]string{
+				"purchaseTime": "invalid format, it should be hh:mm",
+			},
+		}
+	}
+	receipt.PurchaseTime = parsedTime
 
 	for _, itemDto := range dto.Items {
 		item := domain.Item{
@@ -49,7 +71,7 @@ func (s *ReceiptService) Process(ctx context.Context, dto *domain.ReceiptDTO) (*
 		receipt.Items = append(receipt.Items, item)
 	}
 
-	err := s.repository.Create(ctx, receipt)
+	err = s.repository.Create(ctx, receipt)
 	if err != nil {
 		return nil, err
 	}
@@ -86,4 +108,39 @@ func (s *ReceiptService) GetPointsById(ctx context.Context, id string) (int, err
 	}
 
 	return points, nil
+}
+
+func (s *ReceiptService) GetReceipts(
+	ctx context.Context,
+	filters domain.Filters,
+) (domain.PaginatedReceipts, error) {
+	isValid, errors := filters.IsValid()
+	if !isValid {
+		return domain.PaginatedReceipts{}, &domain.Error{
+			Code:    domain.EINVALID,
+			Message: "Invalid filter params",
+			Details: errors,
+		}
+	}
+
+	key := fmt.Sprintf(
+		"receipts:page:%d:limit:%d:sort:%s",
+		filters.Page,
+		filters.Limit,
+		filters.Sort,
+	)
+
+	paginatedReceipts, err := s.cache.GetPaginatedReceipts(ctx, key)
+	if nil == err {
+		return paginatedReceipts, nil
+	}
+
+	paginatedReceipts, err = s.repository.Find(ctx, filters)
+	if err != nil {
+		return domain.PaginatedReceipts{}, err
+	}
+
+	_ = s.cache.SetPaginatedReceipts(ctx, key, paginatedReceipts)
+
+	return paginatedReceipts, nil
 }
