@@ -98,7 +98,7 @@ func (dto *ReceiptDTO) ValidateTotalEqualItemsTotal() {
 	itemsTotalFormatted := strconv.FormatFloat(itemsTotal, 'f', 2, 64)
 
 	message := fmt.Sprintf(
-		"total field should be equal to the sum of all items price, total=%f != itemsTotal=%f",
+		"total field should be equal to the sum of all items price, total=%.2f != itemsTotal=%.2f",
 		dto.Total,
 		itemsTotal,
 	)
