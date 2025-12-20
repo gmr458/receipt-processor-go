@@ -12,7 +12,7 @@ import (
 
 type envelope map[string]any
 
-func (api *app) sendJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) {
+func (api *app) sendJSON(w http.ResponseWriter, status int, data any, headers http.Header) {
 	js, err := json.Marshal(data)
 	if err != nil {
 		api.logger.Error(err.Error())
