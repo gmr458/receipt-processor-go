@@ -102,10 +102,12 @@ func (r Receipt) GetPointsPurchaseDayIsOdd() int {
 // GetPointsTimeOfPurchase returns 10 points if the time of purchase is after 2:00pm and before 4:00pm.
 func (r Receipt) GetPointsTimeOfPurchase() int {
 	hours, mins, _ := r.PurchaseTime.Clock()
-	if (hours >= 14 && mins > 0) && hours < 16 {
+	if hours == 14 && mins > 0 {
 		return 10
 	}
-
+	if hours == 15 {
+		return 10
+	}
 	return 0
 }
 

@@ -89,6 +89,94 @@ func TestCalculatePoints(t *testing.T) {
 			expectedPointsDescription:       0,
 			expectedPointsTimeOfPurchase:    10,
 		},
+		{
+			receipt: Receipt{
+				Retailer:     "Test Store",
+				PurchaseDate: time.Date(2022, time.January, 1, 15, 0, 0, 0, time.Local),
+				PurchaseTime: time.Date(2022, 1, 1, 15, 0, 0, 0, time.Local),
+				Items: []Item{
+					{
+						ShortDescription: "Item",
+						Price:            1.00,
+					},
+				},
+				Total: 1.00,
+			},
+			expectedPointsTotal:             100,
+			expectedPointsRetailerName:      9,
+			expectedPointsRoundDollar:       50,
+			expectedPointsTotalIsMultipleOf: 25,
+			expectedPointsForEveryTwoItems:  0,
+			expectedPointsDateIsOdd:         6,
+			expectedPointsDescription:       0,
+			expectedPointsTimeOfPurchase:    10,
+		},
+		{
+			receipt: Receipt{
+				Retailer:     "Test Store",
+				PurchaseDate: time.Date(2022, time.January, 1, 14, 0, 0, 0, time.Local),
+				PurchaseTime: time.Date(2022, 1, 1, 14, 0, 0, 0, time.Local),
+				Items: []Item{
+					{
+						ShortDescription: "Item",
+						Price:            1.00,
+					},
+				},
+				Total: 1.00,
+			},
+			expectedPointsTotal:             90,
+			expectedPointsRetailerName:      9,
+			expectedPointsRoundDollar:       50,
+			expectedPointsTotalIsMultipleOf: 25,
+			expectedPointsForEveryTwoItems:  0,
+			expectedPointsDateIsOdd:         6,
+			expectedPointsDescription:       0,
+			expectedPointsTimeOfPurchase:    0,
+		},
+		{
+			receipt: Receipt{
+				Retailer:     "Test Store",
+				PurchaseDate: time.Date(2022, time.January, 1, 15, 59, 0, 0, time.Local),
+				PurchaseTime: time.Date(2022, 1, 1, 15, 59, 0, 0, time.Local),
+				Items: []Item{
+					{
+						ShortDescription: "Item",
+						Price:            1.00,
+					},
+				},
+				Total: 1.00,
+			},
+			expectedPointsTotal:             100,
+			expectedPointsRetailerName:      9,
+			expectedPointsRoundDollar:       50,
+			expectedPointsTotalIsMultipleOf: 25,
+			expectedPointsForEveryTwoItems:  0,
+			expectedPointsDateIsOdd:         6,
+			expectedPointsDescription:       0,
+			expectedPointsTimeOfPurchase:    10,
+		},
+		{
+			receipt: Receipt{
+				Retailer:     "Test Store",
+				PurchaseDate: time.Date(2022, time.January, 1, 16, 0, 0, 0, time.Local),
+				PurchaseTime: time.Date(2022, 1, 1, 16, 0, 0, 0, time.Local),
+				Items: []Item{
+					{
+						ShortDescription: "Item",
+						Price:            1.00,
+					},
+				},
+				Total: 1.00,
+			},
+			expectedPointsTotal:             90,
+			expectedPointsRetailerName:      9,
+			expectedPointsRoundDollar:       50,
+			expectedPointsTotalIsMultipleOf: 25,
+			expectedPointsForEveryTwoItems:  0,
+			expectedPointsDateIsOdd:         6,
+			expectedPointsDescription:       0,
+			expectedPointsTimeOfPurchase:    0,
+		},
 	}
 
 	for _, tt := range tests {
