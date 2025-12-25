@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -16,12 +17,13 @@ func (api *app) sendJSON(w http.ResponseWriter, status int, data any, headers ht
 	js, err := json.Marshal(data)
 	if err != nil {
 		api.logger.Error(err.Error())
-		code := http.StatusInternalServerError
-		http.Error(w, http.StatusText(code), code)
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
 		return
 	}
-
-	js = append(js, '\n')
 
 	for key, value := range headers {
 		w.Header()[key] = value
@@ -30,10 +32,7 @@ func (api *app) sendJSON(w http.ResponseWriter, status int, data any, headers ht
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(js); err != nil {
-		api.logger.Error(err.Error())
-		code := http.StatusInternalServerError
-		http.Error(w, http.StatusText(code), code)
-		return
+		api.logger.Error("failed to write response body: " + err.Error())
 	}
 }
 
@@ -44,7 +43,7 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
-	err := decoder.Decode(&dst)
+	err := decoder.Decode(dst)
 	if err != nil {
 		var (
 			syntaxError           *json.SyntaxError
@@ -93,7 +92,7 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 			return domain.Errorf(domain.EINVALID, "body must not be larger than %d bytes", maxBytesError.Limit)
 
 		case errors.As(err, &invalidUnmarshalError):
-			panic(err)
+			panic(fmt.Sprintf("readJSON: invalid unmarshal target: %v", err))
 
 		default:
 			return domain.Errorf(domain.EINTERNAL, err.Error())
@@ -101,7 +100,7 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 	}
 
 	err = decoder.Decode(&struct{}{})
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		return domain.Errorf(domain.EINVALID, "body must only contain a single JSON value")
 	}
 
