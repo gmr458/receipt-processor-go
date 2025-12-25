@@ -36,7 +36,7 @@ func (s *ReceiptService) Process(ctx context.Context, dto domain.ReceiptDTO) (*d
 		ID:       uuid.New().String(),
 		Retailer: dto.Retailer,
 		Total:    dto.Total,
-		Items:    []domain.Item{},
+		Items:    make([]domain.Item, 0, len(dto.Items)),
 	}
 	parsedDate, err := time.Parse("2006-01-02", dto.PurchaseDate)
 	if err != nil {
