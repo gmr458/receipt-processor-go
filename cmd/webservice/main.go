@@ -54,7 +54,7 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	logger.Info("sqlite3 connection stablished")
+	logger.Info("sqlite3 connection established")
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.redis.addr,
@@ -66,7 +66,7 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	logger.Info("redis connection stablished")
+	logger.Info("redis connection established")
 
 	app := &app{
 		config: cfg,
