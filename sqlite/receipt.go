@@ -132,8 +132,9 @@ func (r ReceiptRepository) Create(ctx context.Context, receipt *domain.Receipt) 
 		return err
 	}
 
-	argsItems := []any{}
+	argsItems := make([]any, 0, len(receipt.Items)*4)
 	var queryItems strings.Builder
+	queryItems.Grow(70 + (len(receipt.Items) * 10))
 	queryItems.WriteString("INSERT INTO item (id, short_description, price, receipt_id) VALUES ")
 	for k, v := range receipt.Items {
 		if k > 0 {
