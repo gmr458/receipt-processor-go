@@ -40,28 +40,30 @@ var (
 )
 
 type Conn struct {
-	DB     *sql.DB
-	ctx    context.Context
-	cancel func()
-	Dsn    string
-	logger logger.Logger
+	DB                  *sql.DB
+	ctx                 context.Context
+	cancel              func()
+	Dsn                 string
+	logger              logger.Logger
+	statsUpdateInterval time.Duration
 }
 
-func NewConn(dsn string, log logger.Logger) (*Conn, error) {
-	conn := &Conn{Dsn: dsn, logger: log}
+func NewConn(dsn string, log logger.Logger, statsUpdateInterval time.Duration) (*Conn, error) {
+	conn := &Conn{
+		Dsn:                 dsn,
+		logger:              log,
+		statsUpdateInterval: statsUpdateInterval,
+	}
 	conn.ctx, conn.cancel = context.WithCancel(context.Background())
 
 	if conn.Dsn == "" {
-		err := fmt.Errorf("sqlite3 dsn required")
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("sqlite3 dsn required")
 	}
 
 	if conn.Dsn != ":memory:" {
 		pathdir := filepath.Dir(conn.Dsn)
-		if err := os.MkdirAll(pathdir, 0700); err != nil {
-			conn.logger.Error(err.Error())
-			return nil, err
+		if err := os.MkdirAll(pathdir, 0o700); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
 		conn.logger.Info("sqlite3 database file created")
 	} else {
@@ -71,36 +73,36 @@ func NewConn(dsn string, log logger.Logger) (*Conn, error) {
 	var err error
 	conn.DB, err = sql.Open("sqlite3", conn.Dsn)
 	if err != nil {
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("failed to open sqlite3 database: %w", err)
 	}
 	conn.logger.Info("sqlite3 database connection opened")
 
+	conn.DB.SetMaxOpenConns(1)
+	conn.DB.SetMaxIdleConns(1)
+	conn.DB.SetConnMaxLifetime(0)
+
 	if _, err := conn.DB.Exec(`PRAGMA journal_mode = wal;`); err != nil {
-		err = fmt.Errorf("error applying journal_mode = wal: %w", err)
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error applying journal_mode = wal: %w", err)
 	}
 	conn.logger.Info("journal_mode = wal applied")
 
 	if _, err := conn.DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
-		err = fmt.Errorf("error enabling foreign keys: %w", err)
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error enabling foreign keys: %w", err)
 	}
 	conn.logger.Info("foreign keys enabled")
 
+	if _, err := conn.DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		return nil, fmt.Errorf("error setting busy_timeout: %w", err)
+	}
+	conn.logger.Info("busy_timeout set to 5000ms")
+
 	if err := conn.migrate(); err != nil {
-		err = fmt.Errorf("migration error: %w", err)
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("migration error: %w", err)
 	}
 	conn.logger.Info("successful migration")
 
 	if err := conn.DB.Ping(); err != nil {
-		err = fmt.Errorf("sqlite ping error: %w", err)
-		conn.logger.Error(err.Error())
-		return nil, err
+		return nil, fmt.Errorf("sqlite ping error: %w", err)
 	}
 	conn.logger.Info("successful ping")
 
@@ -121,7 +123,7 @@ func (conn *Conn) migrate() error {
 
 	names, err := fs.Glob(migrationsFS, "migrations/*.sql")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to glob migration files: %w", err)
 	}
 	sort.Strings(names)
 
@@ -137,7 +139,7 @@ func (conn *Conn) migrate() error {
 func (conn *Conn) migrateFile(name string) error {
 	tx, err := conn.DB.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback()
@@ -150,23 +152,30 @@ func (conn *Conn) migrateFile(name string) error {
 		WHERE name = ?
 	`
 	if err := tx.QueryRow(queryCount, name).Scan(&n); err != nil {
-		return err
-	} else if n != 0 { // already run migration, skip
-		return nil
+		return fmt.Errorf("failed to check migration status: %w", err)
+	} else if n != 0 {
+		return nil // migration already applied, skip
 	}
 
-	if buf, err := fs.ReadFile(migrationsFS, name); err != nil {
-		return err
-	} else if _, err := tx.Exec(string(buf)); err != nil {
-		return err
+	buf, err := fs.ReadFile(migrationsFS, name)
+	if err != nil {
+		return fmt.Errorf("failed to read migration file: %w", err)
+	}
+
+	if _, err := tx.Exec(string(buf)); err != nil {
+		return fmt.Errorf("failed to execute migration: %w", err)
 	}
 
 	const queryInsert = `INSERT INTO migrations (name) VALUES (?)`
 	if _, err := tx.Exec(queryInsert, name); err != nil {
-		return err
+		return fmt.Errorf("failed to record migration: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (conn *Conn) Close() error {
@@ -180,9 +189,9 @@ func (conn *Conn) Close() error {
 }
 
 func (conn *Conn) updateStats(ctx context.Context) error {
-	tx, err := conn.DB.BeginTx(ctx, nil)
+	tx, err := conn.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback()
@@ -192,13 +201,13 @@ func (conn *Conn) updateStats(ctx context.Context) error {
 
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM receipt`).Scan(&n)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to count receipts: %w", err)
 	}
 	receiptCountGauge.Set(float64(n))
 
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM item`).Scan(&n)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to count items: %w", err)
 	}
 	itemCountGauge.Set(float64(n))
 
@@ -206,17 +215,19 @@ func (conn *Conn) updateStats(ctx context.Context) error {
 }
 
 func (conn *Conn) monitor() {
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(conn.statsUpdateInterval)
 	defer ticker.Stop()
+
+	conn.logger.Info("stats monitor started", "interval", conn.statsUpdateInterval)
 
 	for {
 		select {
 		case <-conn.ctx.Done():
+			conn.logger.Info("stats monitor stopped")
 			return
 		case <-ticker.C:
 			if err := conn.updateStats(conn.ctx); err != nil {
-				err = fmt.Errorf("error updating stats: %w", err)
-				conn.logger.Error(err.Error())
+				conn.logger.Error("error updating stats", "error", err)
 			}
 		}
 	}

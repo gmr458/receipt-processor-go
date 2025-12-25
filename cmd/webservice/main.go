@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/redis/go-redis/v9"
@@ -23,7 +24,7 @@ func main() {
 	flag.Parse()
 
 	if *displayVersion {
-		fmt.Printf("version: %s", version)
+		fmt.Printf("version: %s\n", version)
 		os.Exit(0)
 	}
 
@@ -49,9 +50,9 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	sqliteConn, err := sqlite.NewConn(cfg.db.dsn, logger)
+	sqliteConn, err := sqlite.NewConn(cfg.db.dsn, logger, 15*time.Second)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error("failed to create sqlite connection", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("sqlite3 connection established")
@@ -63,7 +64,7 @@ func main() {
 	})
 	err = redisClient.Ping(context.Background()).Err()
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error("failed to ping redis", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("redis connection established")
@@ -80,14 +81,21 @@ func main() {
 	go func() {
 		err := app.serveDebug()
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Error("debug server error", "error", err)
 			os.Exit(1)
 		}
 	}()
 
 	err = app.serve()
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error("main server error", "error", err)
 		os.Exit(1)
+	}
+
+	if err := sqliteConn.Close(); err != nil {
+		logger.Error("failed to close sqlite connection", "error", err)
+	}
+	if err := redisClient.Close(); err != nil {
+		logger.Error("failed to close redis connection", "error", err)
 	}
 }
