@@ -23,10 +23,10 @@ type ReceiptRepository interface {
 }
 
 type ReceiptCache interface {
-	SetPaginatedReceipts(ctx context.Context, key string, paginatedReceipts PaginatedReceipts) error
+	SetPaginatedReceipts(ctx context.Context, key string, paginatedReceipts PaginatedReceipts, exp time.Duration) error
 	GetPaginatedReceipts(ctx context.Context, key string) (PaginatedReceipts, error)
 	GetPointsById(ctx context.Context, id string) (int, error)
-	SetPointsById(ctx context.Context, id string, points int) error
+	SetPointsById(ctx context.Context, id string, points int, exp time.Duration) error
 }
 
 type PaginatedReceipts struct {

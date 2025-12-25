@@ -33,14 +33,25 @@ func (c ReceiptCache) GetPointsById(ctx context.Context, id string) (int, error)
 	return points, nil
 }
 
-func (c ReceiptCache) SetPointsById(ctx context.Context, id string, points int) error {
-	return c.redisClient.Set(ctx, id, points, c.duration).Err()
+func (c ReceiptCache) SetPointsById(
+	ctx context.Context,
+	id string,
+	points int,
+	exp time.Duration,
+) error {
+	return c.redisClient.Set(
+		ctx,
+		id,
+		points,
+		exp,
+	).Err()
 }
 
 func (c ReceiptCache) SetPaginatedReceipts(
 	ctx context.Context,
 	key string,
 	paginatedReceipts domain.PaginatedReceipts,
+	exp time.Duration,
 ) error {
 	b, err := json.Marshal(paginatedReceipts)
 	if err != nil {
@@ -49,7 +60,7 @@ func (c ReceiptCache) SetPaginatedReceipts(
 			Message: "Error marshaling paginated receipts before storing on redis",
 		}
 	}
-	err = c.redisClient.Set(ctx, key, b, c.duration).Err()
+	err = c.redisClient.Set(ctx, key, b, exp).Err()
 	if err != nil {
 		return err
 	}
