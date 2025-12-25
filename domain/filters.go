@@ -8,6 +8,11 @@ import (
 	"github.com/gmr458/receipt-processor/validator"
 )
 
+const (
+	MAX_PAGE  = 10_000_000
+	MAX_LIMIT = 100
+)
+
 type Filters struct {
 	Page         int
 	Limit        int
@@ -25,9 +30,9 @@ func (f Filters) IsValid() (bool, map[string]string) {
 	v := validator.New()
 
 	v.Check(f.Page > 0, "page", "must be greater than zero")
-	v.Check(f.Page <= 10_000_000, "page", "must be a maximum if 10 million")
+	v.Check(f.Page <= MAX_PAGE, "page", "must be a maximum if 10 million")
 	v.Check(f.Limit > 0, "limit", "must be greater than zero")
-	v.Check(f.Limit <= 100, "limit", "must be a maximum if 100")
+	v.Check(f.Limit <= MAX_LIMIT, "limit", "must be a maximum if 100")
 	v.Check(slices.Contains(f.SortSafeList, f.Sort), "sort", "invalid sort value")
 
 	return v.Ok(), v.Errors
