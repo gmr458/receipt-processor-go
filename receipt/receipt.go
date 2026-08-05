@@ -1,4 +1,4 @@
-package domain
+package receipt
 
 import (
 	"context"
@@ -34,7 +34,6 @@ type PaginatedReceipts struct {
 	Metadata *Metadata `json:"metadata"`
 }
 
-// GetPointsRetailerName returns one point for every alphanumeric character in the retailer name.
 func (r Receipt) GetPointsRetailerName() int {
 	points := 0
 
@@ -47,7 +46,6 @@ func (r Receipt) GetPointsRetailerName() int {
 	return points
 }
 
-// GetPointsRoundDollar returns 50 points if the total is a round dollar amount with no cents.
 func (r Receipt) GetPointsRoundDollar() int {
 	if hasZeroDecimal(r.Total) {
 		return 50
@@ -56,7 +54,6 @@ func (r Receipt) GetPointsRoundDollar() int {
 	return 0
 }
 
-// GetPointsTotalIsMultipleOf returns 25 points if the total is a multiple of a given number.
 func (r Receipt) GetPointsTotalIsMultipleOf(f float64) int {
 	if xIsMultipleOfy(r.Total, f) {
 		return 25
@@ -65,16 +62,11 @@ func (r Receipt) GetPointsTotalIsMultipleOf(f float64) int {
 	return 0
 }
 
-// GetPointsForEveryNItems returns 5 points for every n items on the receipt.
 func (r Receipt) GetPointsForEveryNItems(n int) int {
 	points := 5
 	return (len(r.Items) / n) * points
 }
 
-// GetPointsItemsDescription returns a specific amount of points if the trimmed
-// length of an item description is a multiple of 3, then it multiplies the price by 0.2
-// and round up to the nearest integer, the result is the number of points earned.
-// This is applied to every item.
 func (r Receipt) GetPointsItemsDescription() int {
 	points := 0
 
@@ -89,7 +81,6 @@ func (r Receipt) GetPointsItemsDescription() int {
 	return points
 }
 
-// GetPointsPurchaseDayIsOdd returns 6 points if the day in the purchase date is odd.
 func (r Receipt) GetPointsPurchaseDayIsOdd() int {
 	day := r.PurchaseDate.Day()
 	if isOdd(day) {
@@ -99,7 +90,6 @@ func (r Receipt) GetPointsPurchaseDayIsOdd() int {
 	return 0
 }
 
-// GetPointsTimeOfPurchase returns 10 points if the time of purchase is after 2:00pm and before 4:00pm.
 func (r Receipt) GetPointsTimeOfPurchase() int {
 	hours, mins, _ := r.PurchaseTime.Clock()
 	if hours == 14 && mins > 0 {

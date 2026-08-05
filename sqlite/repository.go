@@ -1,11 +1,11 @@
 package sqlite
 
 import (
-	"github.com/gmr458/receipt-processor/domain"
+	"github.com/gmr458/receipt-processor/receipt"
 )
 
 type Repository struct {
-	Receipt domain.ReceiptRepository
+	Receipt receipt.ReceiptRepository
 }
 
 func NewRepository(conn *Conn) Repository {

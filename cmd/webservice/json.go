@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gmr458/receipt-processor/domain"
+	"github.com/gmr458/receipt-processor/errs"
 )
 
 type envelope map[string]any
@@ -54,54 +54,54 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 
 		switch {
 		case errors.As(err, &syntaxError):
-			return domain.Errorf(
-				domain.EINVALID,
+			return errs.Errorf(
+				errs.EINVALID,
 				"body contains badly-formed JSON (at character %d)",
 				syntaxError.Offset,
 			)
 
 		case errors.Is(err, io.ErrUnexpectedEOF):
-			return domain.Errorf(domain.EINVALID, "body contains badly-formed JSON")
+			return errs.Errorf(errs.EINVALID, "body contains badly-formed JSON")
 
 		case errors.As(err, &unmarshalTypeError):
 			if unmarshalTypeError.Field != "" {
-				return domain.Errorf(
-					domain.EINVALID,
+				return errs.Errorf(
+					errs.EINVALID,
 					"body contains incorrect JSON type for field %q",
 					unmarshalTypeError.Field,
 				)
 			}
-			return domain.Errorf(
-				domain.EINVALID,
+			return errs.Errorf(
+				errs.EINVALID,
 				"body contains incorrect JSON type (at character %d)",
 				unmarshalTypeError.Offset,
 			)
 
 		case errors.Is(err, io.EOF):
-			return domain.Errorf(domain.EINVALID, "body must not be empty")
+			return errs.Errorf(errs.EINVALID, "body must not be empty")
 
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
 			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
-			return domain.Errorf(
-				domain.EINVALID,
+			return errs.Errorf(
+				errs.EINVALID,
 				"body contains unknown key %s",
 				fieldName,
 			)
 
 		case errors.As(err, &maxBytesError):
-			return domain.Errorf(domain.EINVALID, "body must not be larger than %d bytes", maxBytesError.Limit)
+			return errs.Errorf(errs.EINVALID, "body must not be larger than %d bytes", maxBytesError.Limit)
 
 		case errors.As(err, &invalidUnmarshalError):
 			panic(fmt.Sprintf("readJSON: invalid unmarshal target: %v", err))
 
 		default:
-			return domain.Errorf(domain.EINTERNAL, err.Error())
+			return errs.Errorf(errs.EINTERNAL, err.Error())
 		}
 	}
 
 	err = decoder.Decode(&struct{}{})
 	if !errors.Is(err, io.EOF) {
-		return domain.Errorf(domain.EINVALID, "body must only contain a single JSON value")
+		return errs.Errorf(errs.EINVALID, "body must only contain a single JSON value")
 	}
 
 	return nil

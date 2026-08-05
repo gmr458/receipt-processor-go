@@ -9,5 +9,5 @@ func (app *app) setupRoutes() http.Handler {
 	mux.HandleFunc("GET /receipts/{id}/points", app.handlerGetPoints)
 	mux.HandleFunc("GET /receipts", app.handlerGetReceipts)
 
-	return app.recoverPanic(app.cors(app.rateLimit(mux)))
+	return app.recoverPanic(app.corsHandler.Handler(app.rateLimit(mux)))
 }

@@ -1,4 +1,4 @@
-package domain
+package receipt
 
 type Item struct {
 	ID               string  `json:"id"`

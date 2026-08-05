@@ -2,21 +2,22 @@ package main
 
 import (
 	"net/http"
+	"runtime/debug"
 
-	"github.com/gmr458/receipt-processor/domain"
+	"github.com/gmr458/receipt-processor/errs"
 )
 
 var codes = map[string]int{
-	domain.EINVALID:              http.StatusBadRequest,
-	domain.EUNAUTHORIZED:         http.StatusUnauthorized,
-	domain.EFORBIDDEN:            http.StatusForbidden,
-	domain.ENOTFOUND:             http.StatusNotFound,
-	domain.ENOTACCEPTABLE:        http.StatusNotAcceptable,
-	domain.ECONFLICT:             http.StatusConflict,
-	domain.EUNPROCESSABLECONTENT: http.StatusUnprocessableEntity,
-	domain.ETOOMANYREQUESTS:      http.StatusTooManyRequests,
-	domain.EINTERNAL:             http.StatusInternalServerError,
-	domain.ENOTIMPLEMENTED:       http.StatusNotImplemented,
+	errs.EINVALID:              http.StatusBadRequest,
+	errs.EUNAUTHORIZED:         http.StatusUnauthorized,
+	errs.EFORBIDDEN:            http.StatusForbidden,
+	errs.ENOTFOUND:             http.StatusNotFound,
+	errs.ENOTACCEPTABLE:        http.StatusNotAcceptable,
+	errs.ECONFLICT:             http.StatusConflict,
+	errs.EUNPROCESSABLECONTENT: http.StatusUnprocessableEntity,
+	errs.ETOOMANYREQUESTS:      http.StatusTooManyRequests,
+	errs.EINTERNAL:             http.StatusInternalServerError,
+	errs.ENOTIMPLEMENTED:       http.StatusNotImplemented,
 }
 
 func errorStatusCode(code string) int {
@@ -30,15 +31,16 @@ func (app *app) logError(r *http.Request, err error) {
 	app.logger.Error(err.Error(), "details", map[string]string{
 		"method": r.Method,
 		"url":    r.URL.String(),
+		"stack":  string(debug.Stack()),
 	})
 }
 
 func (app *app) errorResponse(w http.ResponseWriter, r *http.Request, err error) {
-	code := domain.ErrorCode(err)
-	message := domain.ErrorMessage(err)
-	details := domain.ErrorDetails(err)
+	code := errs.ErrorCode(err)
+	message := errs.ErrorMessage(err)
+	details := errs.ErrorDetails(err)
 
-	if code == domain.EINTERNAL {
+	if code == errs.EINTERNAL {
 		app.logError(r, err)
 	}
 

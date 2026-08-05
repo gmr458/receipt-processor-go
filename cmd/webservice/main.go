@@ -13,7 +13,6 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gmr458/receipt-processor/env"
-	"github.com/gmr458/receipt-processor/service"
 	"github.com/gmr458/receipt-processor/sqlite"
 )
 
@@ -30,23 +29,26 @@ func main() {
 
 	var cfg config
 
-	cfg.port = env.GetenvInt("PORT")
-	cfg.debugPort = env.GetenvInt("DEBUG_PORT")
+	cfg.host = env.GetenvOrDefault("HOST", "127.0.0.1")
+	cfg.port = env.GetenvOrDefault("PORT", 4000)
 
-	cfg.env = env.Getenv("ENV")
+	cfg.debugPort = env.GetenvOrDefault("DEBUG_PORT", 4001)
 
-	cfg.db.dsn = env.Getenv("DSN")
+	cfg.env = env.GetenvOrDefault("ENV", "development")
 
-	trustedOrigins := env.Getenv("CORS_TRUSTED_ORIGINS")
+	cfg.db.dsn = env.GetenvOrDefault("DSN", ":memory:")
+
+	trustedOrigins := env.Getenv[string]("CORS_TRUSTED_ORIGINS")
 	cfg.cors.trustedOrigins = strings.Fields(trustedOrigins)
 
-	cfg.limiter.enabled = env.GetenvBool("LIMITER_ENABLED")
-	cfg.limiter.rps = env.GetenvFloat("LIMITER_RPS")
-	cfg.limiter.burst = env.GetenvInt("LIMITER_BURST")
+	cfg.limiter.enabled = env.GetenvOrDefault("LIMITER_ENABLED", true)
+	cfg.limiter.rps = env.GetenvOrDefault("LIMITER_RPS", 10.0)
+	cfg.limiter.burst = env.GetenvOrDefault("LIMITER_BURST", 20)
+	cfg.limiter.trustedProxyHeader = env.GetenvOrDefault("TRUSTED_PROXY_HEADER", "")
 
-	cfg.redis.addr = env.Getenv("REDIS_ADDR")
-	cfg.redis.password = env.Getenv("REDIS_PASSWORD")
-	cfg.redis.db = env.GetenvInt("REDIS_DB")
+	cfg.redis.addr = env.GetenvOrDefault("REDIS_ADDR", "localhost:6379")
+	cfg.redis.password = env.Getenv[string]("REDIS_PASSWORD")
+	cfg.redis.db = env.GetenvOrDefault("REDIS_DB", 0)
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -69,14 +71,12 @@ func main() {
 	}
 	logger.Info("redis connection established")
 
-	app := &app{
-		config: cfg,
-		logger: logger,
-		service: service.New(
-			sqliteConn,
-			redisClient,
-		),
-	}
+	app := newApp(
+		cfg,
+		logger,
+		sqliteConn,
+		redisClient,
+	)
 
 	go func() {
 		err := app.serveDebug()

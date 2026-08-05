@@ -8,14 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gmr458/receipt-processor/domain"
+	"github.com/gmr458/receipt-processor/errs"
+	"github.com/gmr458/receipt-processor/receipt"
 )
 
 type ReceiptRepository struct {
 	conn *Conn
 }
 
-func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Receipt, error) {
+func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Receipt, error) {
 	tx, err := r.conn.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -32,21 +33,21 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
         FROM receipt
         WHERE id = ?
     `
-	receipt := domain.Receipt{Items: []domain.Item{}}
+	rec := receipt.Receipt{Items: []receipt.Item{}}
 	var timeStr string
 	var dateStr string
 	row := tx.QueryRow(queryReceipt, id)
 	err = row.Scan(
-		&receipt.ID,
-		&receipt.Retailer,
+		&rec.ID,
+		&rec.Retailer,
 		&dateStr,
 		&timeStr,
-		&receipt.Total,
+		&rec.Total,
 	)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return nil, &domain.Error{Code: domain.ENOTFOUND, Message: "Receipt not found"}
+			return nil, &errs.Error{Code: errs.ENOTFOUND, Message: "Receipt not found"}
 		default:
 			return nil, err
 		}
@@ -59,8 +60,8 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
 	if err != nil {
 		return nil, err
 	}
-	receipt.PurchaseDate = dateParsed
-	receipt.PurchaseTime = timeParsed
+	rec.PurchaseDate = dateParsed
+	rec.PurchaseTime = timeParsed
 
 	queryItems := `
         SELECT
@@ -71,14 +72,14 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
         FROM item
         WHERE receipt_id = ?
     `
-	rows, err := tx.QueryContext(ctx, queryItems, receipt.ID)
+	rows, err := tx.QueryContext(ctx, queryItems, rec.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var item domain.Item
+		var item receipt.Item
 		err = rows.Scan(
 			&item.ID,
 			&item.ShortDescription,
@@ -89,7 +90,7 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
 			return nil, err
 		}
 
-		receipt.Items = append(receipt.Items, item)
+		rec.Items = append(rec.Items, item)
 	}
 	err = rows.Err()
 	if err != nil {
@@ -101,10 +102,10 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*domain.Rec
 		return nil, err
 	}
 
-	return &receipt, nil
+	return &rec, nil
 }
 
-func (r ReceiptRepository) Create(ctx context.Context, receipt *domain.Receipt) error {
+func (r ReceiptRepository) Create(ctx context.Context, receipt *receipt.Receipt) error {
 	tx, err := r.conn.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -158,12 +159,12 @@ func (r ReceiptRepository) Create(ctx context.Context, receipt *domain.Receipt) 
 
 func (r ReceiptRepository) Find(
 	ctx context.Context,
-	filters domain.Filters,
-) (domain.PaginatedReceipts, error) {
+	filters receipt.Filters,
+) (receipt.PaginatedReceipts, error) {
 	var total int
 	err := r.conn.DB.QueryRowContext(ctx, "SELECT count(*) FROM receipt").Scan(&total)
 	if err != nil {
-		return domain.PaginatedReceipts{}, err
+		return receipt.PaginatedReceipts{}, err
 	}
 
 	queryReceipts := fmt.Sprintf(
@@ -187,49 +188,49 @@ func (r ReceiptRepository) Find(
 		filters.Offset(),
 	)
 	if err != nil {
-		return domain.PaginatedReceipts{}, err
+		return receipt.PaginatedReceipts{}, err
 	}
 	defer rows.Close()
 
-	receipts := make([]domain.Receipt, 0, filters.Limit)
+	receipts := make([]receipt.Receipt, 0, filters.Limit)
 	receiptIDs := make([]string, 0, filters.Limit)
 
 	for rows.Next() {
-		var receipt domain.Receipt
+		var rec receipt.Receipt
 		var timeStr string
 		var dateStr string
 		err = rows.Scan(
-			&receipt.ID,
-			&receipt.Retailer,
+			&rec.ID,
+			&rec.Retailer,
 			&dateStr,
 			&timeStr,
-			&receipt.Total,
+			&rec.Total,
 		)
 		if err != nil {
-			return domain.PaginatedReceipts{}, err
+			return receipt.PaginatedReceipts{}, err
 		}
 		dateParsed, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
-			return domain.PaginatedReceipts{}, err
+			return receipt.PaginatedReceipts{}, err
 		}
 		timeParsed, err := time.Parse("15:04", timeStr)
 		if err != nil {
-			return domain.PaginatedReceipts{}, err
+			return receipt.PaginatedReceipts{}, err
 		}
-		receipt.PurchaseDate = dateParsed
-		receipt.PurchaseTime = timeParsed
-		receipt.Items = []domain.Item{}
-		receipts = append(receipts, receipt)
-		receiptIDs = append(receiptIDs, receipt.ID)
+		rec.PurchaseDate = dateParsed
+		rec.PurchaseTime = timeParsed
+		rec.Items = []receipt.Item{}
+		receipts = append(receipts, rec)
+		receiptIDs = append(receiptIDs, rec.ID)
 	}
 
 	err = rows.Err()
 	if err != nil {
-		return domain.PaginatedReceipts{}, err
+		return receipt.PaginatedReceipts{}, err
 	}
 
 	if len(receipts) == 0 {
-		return domain.PaginatedReceipts{
+		return receipt.PaginatedReceipts{
 			Receipts: receipts,
 			Metadata: nil,
 		}, nil
@@ -253,13 +254,13 @@ func (r ReceiptRepository) Find(
 
 	itemRows, err := r.conn.DB.QueryContext(ctx, queryItems, args...)
 	if err != nil {
-		return domain.PaginatedReceipts{}, err
+		return receipt.PaginatedReceipts{}, err
 	}
 	defer itemRows.Close()
 
-	itemsByReceiptID := make(map[string][]domain.Item, filters.Limit)
+	itemsByReceiptID := make(map[string][]receipt.Item, filters.Limit)
 	for itemRows.Next() {
-		var item domain.Item
+		var item receipt.Item
 		err = itemRows.Scan(
 			&item.ID,
 			&item.ShortDescription,
@@ -267,14 +268,14 @@ func (r ReceiptRepository) Find(
 			&item.ReceiptID,
 		)
 		if err != nil {
-			return domain.PaginatedReceipts{}, err
+			return receipt.PaginatedReceipts{}, err
 		}
 		itemsByReceiptID[item.ReceiptID] = append(itemsByReceiptID[item.ReceiptID], item)
 	}
 
 	err = itemRows.Err()
 	if err != nil {
-		return domain.PaginatedReceipts{}, err
+		return receipt.PaginatedReceipts{}, err
 	}
 
 	for i := range receipts {
@@ -283,9 +284,9 @@ func (r ReceiptRepository) Find(
 		}
 	}
 
-	metadata := domain.CalculateMetadata(total, filters.Page, filters.Limit)
+	metadata := receipt.CalculateMetadata(total, filters.Page, filters.Limit)
 
-	return domain.PaginatedReceipts{
+	return receipt.PaginatedReceipts{
 		Receipts: receipts,
 		Metadata: &metadata,
 	}, nil

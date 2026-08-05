@@ -15,7 +15,7 @@ import (
 
 func (app *app) serve() error {
 	app.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.port),
+		Addr:         fmt.Sprintf("%s:%d", app.config.host, app.config.port),
 		Handler:      app.setupRoutes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
@@ -46,7 +46,7 @@ func (app *app) serveDebug() error {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	app.debugServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.debugPort),
+		Addr:         fmt.Sprintf("%s:%d", app.config.host, app.config.debugPort),
 		Handler:      mux,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,

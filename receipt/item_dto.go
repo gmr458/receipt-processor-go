@@ -1,4 +1,4 @@
-package domain
+package receipt
 
 type ItemDTO struct {
 	ShortDescription string  `json:"shortDescription"`

@@ -8,7 +8,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/prometheus/client_golang v1.20.2
 	github.com/redis/go-redis/v9 v9.6.1
-	golang.org/x/time v0.6.0
+	github.com/rs/cors v1.11.1
 )
 
 require (

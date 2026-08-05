@@ -6,44 +6,74 @@ import (
 	"strconv"
 )
 
-func Getenv(key string) string {
+func Getenv[T int | float64 | string | bool](key string) T {
 	value := os.Getenv(key)
 	if value == "" {
 		log.Fatalf("%s environment variable is empty", key)
 	}
 
-	return value
-}
+	var result T
+	switch any(result).(type) {
+	case int:
+		v, err := strconv.Atoi(value)
+		if err != nil {
+			log.Fatalf("%s: invalid int value %q", key, value)
+		}
+		result = any(v).(T)
 
-func GetenvInt(key string) int {
-	value := Getenv(key)
+	case float64:
+		v, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			log.Fatalf("%s: invalid float64 value %q", key, value)
+		}
+		result = any(v).(T)
 
-	i, err := strconv.Atoi(value)
-	if err != nil {
-		log.Fatalf("%s environment variable must be an integer", key)
+	case bool:
+		v, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Fatalf("%s: invalid bool value %q", key, value)
+		}
+		result = any(v).(T)
+
+	case string:
+		result = any(value).(T)
 	}
 
-	return i
+	return result
 }
 
-func GetenvFloat(key string) float64 {
-	value := Getenv(key)
-
-	f, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		log.Fatalf("%s environment variable must be a floating-point number", key)
+func GetenvOrDefault[T int | float64 | string | bool](key string, defaultVal T) T {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultVal
 	}
 
-	return f
-}
+	switch any(defaultVal).(type) {
+	case int:
+		i, err := strconv.Atoi(value)
+		if err != nil {
+			log.Fatalf("%s environment variable must be an integer", key)
+		}
+		return any(i).(T)
 
-func GetenvBool(key string) bool {
-	value := Getenv(key)
+	case float64:
+		f, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			log.Fatalf("%s environment variable must be a floating-point number", key)
+		}
+		return any(f).(T)
 
-	b, err := strconv.ParseBool(value)
-	if err != nil {
-		log.Fatalf("%s environment variable must be a boolean (1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False)", key)
+	case string:
+		return any(value).(T)
+
+	case bool:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Fatalf("%s environment variable must be a boolean", key)
+		}
+		return any(b).(T)
+
+	default:
+		return defaultVal
 	}
-
-	return b
 }

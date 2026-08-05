@@ -3,11 +3,11 @@ package main
 import (
 	"net/http"
 
-	"github.com/gmr458/receipt-processor/domain"
+	"github.com/gmr458/receipt-processor/receipt"
 )
 
 func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
-	var input domain.ReceiptDTO
+	var input receipt.ReceiptDTO
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
@@ -15,7 +15,7 @@ func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	receipt, err := app.service.Receipt.Process(r.Context(), input)
+	receipt, err := app.receiptService.Process(r.Context(), input)
 	if err != nil {
 		app.errorResponse(w, r, err)
 		return
@@ -35,7 +35,7 @@ func (app *app) handlerGetPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	points, err := app.service.Receipt.GetPointsById(r.Context(), id)
+	points, err := app.receiptService.GetPointsById(r.Context(), id)
 	if err != nil {
 		app.errorResponse(w, r, err)
 		return
@@ -48,7 +48,7 @@ func (app *app) handlerGetPoints(w http.ResponseWriter, r *http.Request) {
 
 func (app *app) handlerGetReceipts(w http.ResponseWriter, r *http.Request) {
 	queryValues := r.URL.Query()
-	filters := domain.NewFilters(
+	filters := receipt.NewFilters(
 		"id",
 		"-id",
 		"retailer",
@@ -62,7 +62,7 @@ func (app *app) handlerGetReceipts(w http.ResponseWriter, r *http.Request) {
 	filters.Limit = getURLValuePositiveInt(queryValues, "limit", 10)
 	filters.Sort = getURLValueStr(queryValues, filters.SortSafeList, "sort", "purchase_date")
 
-	paginatedReceipts, err := app.service.Receipt.GetReceipts(r.Context(), filters)
+	paginatedReceipts, err := app.receiptService.GetReceipts(r.Context(), filters)
 	if err != nil {
 		app.errorResponse(w, r, err)
 		return

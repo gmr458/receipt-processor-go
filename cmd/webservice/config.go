@@ -1,6 +1,9 @@
 package main
 
 type config struct {
+	// HTTP Server's host
+	host string
+
 	// HTTP Server's port
 	port int
 
@@ -30,9 +33,10 @@ type config struct {
 
 	// Limit Rate Config
 	limiter struct {
-		enabled bool
-		rps     float64
-		burst   int
+		enabled            bool
+		rps                float64
+		burst              int
+		trustedProxyHeader string
 	}
 
 	// CORS Config
