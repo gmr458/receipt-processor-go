@@ -46,7 +46,7 @@ func (app *app) errorResponse(w http.ResponseWriter, r *http.Request, err error)
 
 	status := errorStatusCode(code)
 	app.sendJSON(w, status, envelope{
-		"message": message,
+		"error":   message,
 		"details": details,
 	}, nil)
 }
