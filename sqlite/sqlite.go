@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,8 +15,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"github.com/gmr458/receipt-processor/logger"
 )
 
 //go:embed migrations/*.sql
@@ -44,11 +43,11 @@ type Conn struct {
 	ctx                 context.Context
 	cancel              func()
 	Dsn                 string
-	logger              logger.Logger
+	logger              *slog.Logger
 	statsUpdateInterval time.Duration
 }
 
-func NewConn(dsn string, log logger.Logger, statsUpdateInterval time.Duration) (*Conn, error) {
+func NewConn(dsn string, log *slog.Logger, statsUpdateInterval time.Duration) (*Conn, error) {
 	conn := &Conn{
 		Dsn:                 dsn,
 		logger:              log,

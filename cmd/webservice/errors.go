@@ -28,7 +28,7 @@ func errorStatusCode(code string) int {
 }
 
 func (app *app) logError(r *http.Request, err error) {
-	app.logger.Error(err.Error(), "details", map[string]string{
+	app.loggerFromContext(r.Context()).Error(err.Error(), "details", map[string]string{
 		"method": r.Method,
 		"url":    r.URL.String(),
 		"stack":  string(debug.Stack()),

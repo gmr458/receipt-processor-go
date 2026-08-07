@@ -62,50 +62,17 @@ var (
 	)
 )
 
-type metricsResponseWriter struct {
-	wrapped       http.ResponseWriter
-	statusCode    int
-	headerWritten bool
-}
-
-func (mw *metricsResponseWriter) Header() http.Header {
-	return mw.wrapped.Header()
-}
-
-func (mw *metricsResponseWriter) WriteHeader(statusCode int) {
-	mw.wrapped.WriteHeader(statusCode)
-
-	if !mw.headerWritten {
-		mw.statusCode = statusCode
-		mw.headerWritten = true
-	}
-}
-
-func (mw *metricsResponseWriter) Write(b []byte) (int, error) {
-	if !mw.headerWritten {
-		mw.statusCode = http.StatusOK
-		mw.headerWritten = true
-	}
-
-	return mw.wrapped.Write(b)
-}
-
-func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
-	return mw.wrapped
-}
-
 func (app *app) metrics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpRequestsReceivedTotal.WithLabelValues().Inc()
 
-		mw := &metricsResponseWriter{wrapped: w}
-
+		mw := newStatusResponseWriter(w)
 		start := time.Now()
 
 		next.ServeHTTP(mw, r)
 
 		duration := time.Since(start).Seconds()
-		statusCode := strconv.Itoa(mw.statusCode)
+		statusCode := strconv.Itoa(mw.StatusCode())
 
 		httpResponseDurationSeconds.With(prometheus.Labels{
 			"method":      r.Method,
