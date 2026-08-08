@@ -3,22 +3,16 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
-
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
 
 var (
 	receiptCountGauge = promauto.NewGauge(
@@ -95,11 +89,6 @@ func NewConn(dsn string, log *slog.Logger, statsUpdateInterval time.Duration) (*
 	}
 	conn.logger.Info("busy_timeout set to 5000ms")
 
-	if err := conn.migrate(); err != nil {
-		return nil, fmt.Errorf("migration error: %w", err)
-	}
-	conn.logger.Info("successful migration")
-
 	if err := conn.DB.Ping(); err != nil {
 		return nil, fmt.Errorf("sqlite ping error: %w", err)
 	}
@@ -108,73 +97,6 @@ func NewConn(dsn string, log *slog.Logger, statsUpdateInterval time.Duration) (*
 	go conn.monitor()
 
 	return conn, nil
-}
-
-func (conn *Conn) migrate() error {
-	const query = `
-		CREATE TABLE IF NOT EXISTS migrations (
-			name TEXT PRIMARY KEY
-		);
-	`
-	if _, err := conn.DB.Exec(query); err != nil {
-		return fmt.Errorf("cannot create migrations table: %w", err)
-	}
-
-	names, err := fs.Glob(migrationsFS, "migrations/*.sql")
-	if err != nil {
-		return fmt.Errorf("failed to glob migration files: %w", err)
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		if err := conn.migrateFile(name); err != nil {
-			return fmt.Errorf("migration error: name=%q err=%w", name, err)
-		}
-	}
-
-	return nil
-}
-
-func (conn *Conn) migrateFile(name string) error {
-	tx, err := conn.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	var n int
-	const queryCount = `
-		SELECT COUNT(*)
-		FROM migrations
-		WHERE name = ?
-	`
-	if err := tx.QueryRow(queryCount, name).Scan(&n); err != nil {
-		return fmt.Errorf("failed to check migration status: %w", err)
-	} else if n != 0 {
-		return nil // migration already applied, skip
-	}
-
-	buf, err := fs.ReadFile(migrationsFS, name)
-	if err != nil {
-		return fmt.Errorf("failed to read migration file: %w", err)
-	}
-
-	if _, err := tx.Exec(string(buf)); err != nil {
-		return fmt.Errorf("failed to execute migration: %w", err)
-	}
-
-	const queryInsert = `INSERT INTO migrations (name) VALUES (?)`
-	if _, err := tx.Exec(queryInsert, name); err != nil {
-		return fmt.Errorf("failed to record migration: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit migration transaction: %w", err)
-	}
-
-	return nil
 }
 
 func (conn *Conn) Close() error {

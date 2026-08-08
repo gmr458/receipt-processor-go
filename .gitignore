@@ -12,7 +12,7 @@
 !*.yaml
 !*.yml
 !Dockerfile
-!Makefile
+!justfile
 
 # ...even if they are in subdirectories
 !*/
