@@ -76,6 +76,8 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 		return nil, err
 	}
 
+	_ = s.cache.DeletePaginatedReceipts(ctx)
+
 	go func() {
 		_ = s.cache.SetPointsById(
 			context.Background(),

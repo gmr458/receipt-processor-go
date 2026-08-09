@@ -69,6 +69,28 @@ func (c ReceiptCache) SetPaginatedReceipts(
 	return nil
 }
 
+func (c ReceiptCache) DeletePaginatedReceipts(ctx context.Context) error {
+	var cursor uint64
+
+	for {
+		keys, nextCursor, err := c.redisClient.Scan(ctx, cursor, "receipts:*", 100).Result()
+		if err != nil {
+			return err
+		}
+
+		if len(keys) > 0 {
+			if err := c.redisClient.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+		}
+
+		if nextCursor == 0 {
+			return nil
+		}
+		cursor = nextCursor
+	}
+}
+
 func (c ReceiptCache) GetPaginatedReceipts(ctx context.Context, key string) (receipt.PaginatedReceipts, error) {
 	val, err := c.redisClient.Get(ctx, key).Result()
 	if err != nil {

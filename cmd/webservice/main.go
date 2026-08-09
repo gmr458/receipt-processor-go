@@ -13,7 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gmr458/receipt-processor/env"
-	"github.com/gmr458/receipt-processor/sqlite"
+	"github.com/gmr458/receipt-processor/postgres"
 )
 
 var version string
@@ -36,7 +36,7 @@ func main() {
 
 	cfg.env = env.GetenvOrDefault("ENV", "development")
 
-	cfg.db.dsn = env.GetenvOrDefault("DSN", ":memory:")
+	cfg.db.dsn = env.GetenvOrDefault("DSN", "postgres://postgres:postgres@localhost:5432/receipt_processor?sslmode=disable")
 
 	trustedOrigins := env.Getenv[string]("CORS_TRUSTED_ORIGINS")
 	cfg.cors.trustedOrigins = strings.Fields(trustedOrigins)
@@ -52,12 +52,12 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	sqliteConn, err := sqlite.NewConn(cfg.db.dsn, logger, 15*time.Second)
+	postgresConn, err := postgres.NewConn(cfg.db.dsn, logger, 15*time.Second)
 	if err != nil {
-		logger.Error("failed to create sqlite connection", "error", err)
+		logger.Error("failed to create postgres connection", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("sqlite3 connection established")
+	logger.Info("postgres connection established")
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.redis.addr,
@@ -74,7 +74,7 @@ func main() {
 	app := newApp(
 		cfg,
 		logger,
-		sqliteConn,
+		postgresConn,
 		redisClient,
 	)
 
@@ -92,8 +92,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := sqliteConn.Close(); err != nil {
-		logger.Error("failed to close sqlite connection", "error", err)
+	if err := postgresConn.Close(); err != nil {
+		logger.Error("failed to close postgres connection", "error", err)
 	}
 	if err := redisClient.Close(); err != nil {
 		logger.Error("failed to close redis connection", "error", err)

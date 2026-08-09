@@ -27,6 +27,7 @@ type ReceiptCache interface {
 	GetPaginatedReceipts(ctx context.Context, key string) (PaginatedReceipts, error)
 	GetPointsById(ctx context.Context, id string) (int, error)
 	SetPointsById(ctx context.Context, id string, points int, exp time.Duration) error
+	DeletePaginatedReceipts(ctx context.Context) error
 }
 
 type PaginatedReceipts struct {

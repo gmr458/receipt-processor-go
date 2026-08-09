@@ -8,11 +8,11 @@ set dotenv-load
 project := "webservice"
 binary := "bin/" + project
 cmd := "./cmd/webservice"
-migrations := justfile_directory() / "sqlite/migrations"
+migrations := justfile_directory() / "postgres/migrations"
 
 version := `git describe --always --dirty --tags --long`
 
-migrate := "go run -tags sqlite3 github.com/golang-migrate/migrate/v4/cmd/migrate"
+migrate := "go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate"
 
 # --------------------------------------------------------------------
 # Development
@@ -35,7 +35,6 @@ build:
 start: build
     ./{{ binary }}
 
-
 format:
     gofmt -w -l .
 
@@ -47,26 +46,26 @@ format:
 migrate-up:
     {{ migrate }} \
         -path "{{ migrations }}" \
-        -database "sqlite3://$DSN" \
+        -database "$DSN" \
         up
 
 # Roll back the last migration.
 migrate-down:
     {{ migrate }} \
         -path "{{ migrations }}" \
-        -database "sqlite3://$DSN" \
+        -database "$DSN" \
         down 1
 
 # Force the database to a specific migration version.
 migrate-force version:
     {{ migrate }} \
         -path "{{ migrations }}" \
-        -database "sqlite3://$DSN" \
+        -database "$DSN" \
         force {{ version }}
 
 # Show the current migration version.
 migrate-version:
     {{ migrate }} \
         -path "{{ migrations }}" \
-        -database "sqlite3://$DSN" \
+        -database "$DSN" \
         version

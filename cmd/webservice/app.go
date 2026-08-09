@@ -8,9 +8,9 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/rs/cors"
 
+	"github.com/gmr458/receipt-processor/postgres"
 	"github.com/gmr458/receipt-processor/receipt"
 	"github.com/gmr458/receipt-processor/redis"
-	"github.com/gmr458/receipt-processor/sqlite"
 )
 
 type app struct {
@@ -24,8 +24,8 @@ type app struct {
 	rateLimiter    *redis.TokenBucket
 }
 
-func newApp(cfg config, logger *slog.Logger, sqliteConn *sqlite.Conn, redisClient *goredis.Client) *app {
-	repository := sqlite.NewRepository(sqliteConn)
+func newApp(cfg config, logger *slog.Logger, postgresConn *postgres.Conn, redisClient *goredis.Client) *app {
+	repository := postgres.NewRepository(postgresConn)
 	cache := redis.NewCache(redisClient)
 
 	return &app{
