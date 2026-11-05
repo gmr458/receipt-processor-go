@@ -33,7 +33,7 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 	}
 
 	rec := &Receipt{
-		ID:       uuid.New().String(),
+		ID:       uuid.Must(uuid.NewV7()).String(),
 		Retailer: dto.Retailer,
 		Total:    dto.Total,
 		Items:    make([]Item, 0, len(dto.Items)),
@@ -64,7 +64,7 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 
 	for _, itemDto := range dto.Items {
 		item := Item{
-			ID:               uuid.New().String(),
+			ID:               uuid.Must(uuid.NewV7()).String(),
 			ShortDescription: itemDto.ShortDescription,
 			Price:            itemDto.Price,
 		}

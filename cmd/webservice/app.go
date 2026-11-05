@@ -8,6 +8,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/rs/cors"
 
+	"github.com/gmr458/receipt-processor/auth"
 	"github.com/gmr458/receipt-processor/postgres"
 	"github.com/gmr458/receipt-processor/receipt"
 	"github.com/gmr458/receipt-processor/redis"
@@ -19,12 +20,13 @@ type app struct {
 	server         *http.Server
 	debugServer    *http.Server
 	receiptService receipt.Service
+	authService    auth.Service
 	wg             sync.WaitGroup
 	corsHandler    *cors.Cors
 	rateLimiter    *redis.TokenBucket
 }
 
-func newApp(cfg config, logger *slog.Logger, postgresConn *postgres.Conn, redisClient *goredis.Client) *app {
+func newApp(cfg config, logger *slog.Logger, postgresConn *postgres.Conn, redisClient *goredis.Client, authMailer auth.Mailer) *app {
 	repository := postgres.NewRepository(postgresConn)
 	cache := redis.NewCache(redisClient)
 
@@ -34,6 +36,15 @@ func newApp(cfg config, logger *slog.Logger, postgresConn *postgres.Conn, redisC
 		receiptService: receipt.NewService(
 			repository.Receipt,
 			cache.Receipt,
+		),
+		authService: auth.NewService(
+			repository.User,
+			repository.Session,
+			repository.Account,
+			repository.Verification,
+			cache.Session,
+			authMailer,
+			authConfig(cfg),
 		),
 		corsHandler: cors.New(cors.Options{
 			AllowedOrigins:   cfg.cors.trustedOrigins,
