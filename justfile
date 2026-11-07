@@ -12,7 +12,7 @@ migrations := justfile_directory() / "postgres/migrations"
 
 version := `git describe --always --dirty --tags --long`
 
-migrate := "go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate"
+migrate := "migrate"
 
 # --------------------------------------------------------------------
 # Development
@@ -37,6 +37,10 @@ start: build
 
 format:
     gofmt -w -l .
+
+# Run golangci-lint.
+lint:
+    golangci-lint run
 
 # --------------------------------------------------------------------
 # Database migrations

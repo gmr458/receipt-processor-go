@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (app *app) serve() error {
@@ -37,37 +35,6 @@ func (app *app) serve() error {
 	}
 
 	app.logger.Info("stopped server", "addr", app.server.Addr)
-
-	return nil
-}
-
-func (app *app) serveDebug() error {
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-
-	app.debugServer = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", app.config.host, app.config.debugPort),
-		Handler:      mux,
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-
-	shutdownError := app.setupShutdown(app.debugServer, "debug server")
-
-	app.logger.Info("starting debug server", "addr", app.debugServer.Addr, "env", app.config.env)
-
-	err := app.debugServer.ListenAndServe()
-	if !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-
-	err = <-shutdownError
-	if err != nil {
-		return err
-	}
-
-	app.logger.Info("stopped debug server", "addr", app.debugServer.Addr)
 
 	return nil
 }

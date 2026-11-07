@@ -17,7 +17,6 @@ type app struct {
 	config         config
 	logger         *slog.Logger
 	server         *http.Server
-	debugServer    *http.Server
 	receiptService receipt.Service
 	wg             sync.WaitGroup
 	corsHandler    *cors.Cors

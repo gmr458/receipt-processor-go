@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/redis/go-redis/v9"
@@ -32,8 +31,6 @@ func main() {
 	cfg.host = env.GetenvOrDefault("HOST", "127.0.0.1")
 	cfg.port = env.GetenvOrDefault("PORT", 4000)
 
-	cfg.debugPort = env.GetenvOrDefault("DEBUG_PORT", 4001)
-
 	cfg.env = env.GetenvOrDefault("ENV", "development")
 
 	cfg.db.dsn = env.GetenvOrDefault("DSN", "postgres://postgres:postgres@localhost:5432/receipt_processor?sslmode=disable")
@@ -52,7 +49,7 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	postgresConn, err := postgres.NewConn(cfg.db.dsn, logger, 15*time.Second)
+	postgresConn, err := postgres.NewConn(cfg.db.dsn, logger)
 	if err != nil {
 		logger.Error("failed to create postgres connection", "error", err)
 		os.Exit(1)
@@ -77,14 +74,6 @@ func main() {
 		postgresConn,
 		redisClient,
 	)
-
-	go func() {
-		err := app.serveDebug()
-		if err != nil {
-			logger.Error("debug server error", "error", err)
-			os.Exit(1)
-		}
-	}()
 
 	err = app.serve()
 	if err != nil {

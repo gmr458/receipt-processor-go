@@ -1,53 +1,26 @@
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-	receiptCountGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "receipt_processor",
-			Name:      "receipt_count",
-			Help:      "Number of receipts created.",
-		},
-	)
-
-	itemCountGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "receipt_processor",
-			Name:      "item_count",
-			Help:      "Number of items created.",
-		},
-	)
 )
 
 type Conn struct {
-	DB                  *sql.DB
-	ctx                 context.Context
-	cancel              func()
-	Dsn                 string
-	logger              *slog.Logger
-	statsUpdateInterval time.Duration
+	DB     *sql.DB
+	Dsn    string
+	logger *slog.Logger
 }
 
-func NewConn(dsn string, log *slog.Logger, statsUpdateInterval time.Duration) (*Conn, error) {
+func NewConn(dsn string, log *slog.Logger) (*Conn, error) {
 	conn := &Conn{
-		Dsn:                 dsn,
-		logger:              log,
-		statsUpdateInterval: statsUpdateInterval,
+		Dsn:    dsn,
+		logger: log,
 	}
-	conn.ctx, conn.cancel = context.WithCancel(context.Background())
 
 	if conn.Dsn == "" {
 		return nil, fmt.Errorf("sqlite3 dsn required")
@@ -94,62 +67,13 @@ func NewConn(dsn string, log *slog.Logger, statsUpdateInterval time.Duration) (*
 	}
 	conn.logger.Info("successful ping")
 
-	go conn.monitor()
-
 	return conn, nil
 }
 
 func (conn *Conn) Close() error {
-	conn.cancel()
-
 	if conn.DB != nil {
 		return conn.DB.Close()
 	}
 
 	return nil
-}
-
-func (conn *Conn) updateStats(ctx context.Context) error {
-	tx, err := conn.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	var n int
-
-	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM receipt`).Scan(&n)
-	if err != nil {
-		return fmt.Errorf("failed to count receipts: %w", err)
-	}
-	receiptCountGauge.Set(float64(n))
-
-	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM item`).Scan(&n)
-	if err != nil {
-		return fmt.Errorf("failed to count items: %w", err)
-	}
-	itemCountGauge.Set(float64(n))
-
-	return nil
-}
-
-func (conn *Conn) monitor() {
-	ticker := time.NewTicker(conn.statsUpdateInterval)
-	defer ticker.Stop()
-
-	conn.logger.Info("stats monitor started", "interval", conn.statsUpdateInterval)
-
-	for {
-		select {
-		case <-conn.ctx.Done():
-			conn.logger.Info("stats monitor stopped")
-			return
-		case <-ticker.C:
-			if err := conn.updateStats(conn.ctx); err != nil {
-				conn.logger.Error("error updating stats", "error", err)
-			}
-		}
-	}
 }

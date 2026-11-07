@@ -95,7 +95,7 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 			panic(fmt.Sprintf("readJSON: invalid unmarshal target: %v", err))
 
 		default:
-			return errs.Errorf(errs.EINTERNAL, err.Error())
+			return errs.Errorf(errs.EINTERNAL, "%s", err.Error())
 		}
 	}
 

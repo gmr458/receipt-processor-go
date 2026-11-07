@@ -11,8 +11,10 @@
 !*.json
 !*.yaml
 !*.yml
-!Dockerfile
 !justfile
+!flake.nix
+!flake.lock
+!.env.example
 
 # ...even if they are in subdirectories
 !*/
