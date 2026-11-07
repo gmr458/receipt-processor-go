@@ -78,14 +78,12 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 
 	_ = s.cache.DeletePaginatedReceipts(ctx)
 
-	go func() {
-		_ = s.cache.SetPointsById(
-			context.Background(),
-			rec.ID,
-			rec.CalculateTotalPoints(),
-			5*time.Minute,
-		)
-	}()
+	_ = s.cache.SetPointsById(
+		ctx,
+		rec.ID,
+		rec.CalculateTotalPoints(),
+		5*time.Minute,
+	)
 
 	return rec, nil
 }
@@ -108,14 +106,12 @@ func (s *Service) GetPointsById(ctx context.Context, id string) (int, error) {
 
 	points = receipt.CalculateTotalPoints()
 
-	go func() {
-		_ = s.cache.SetPointsById(
-			context.Background(),
-			receipt.ID,
-			points,
-			5*time.Minute,
-		)
-	}()
+	_ = s.cache.SetPointsById(
+		ctx,
+		receipt.ID,
+		points,
+		5*time.Minute,
+	)
 
 	return points, nil
 }
@@ -150,14 +146,12 @@ func (s *Service) GetReceipts(
 		return PaginatedReceipts{}, err
 	}
 
-	go func() {
-		_ = s.cache.SetPaginatedReceipts(
-			context.Background(),
-			key,
-			paginatedReceipts,
-			5*time.Minute,
-		)
-	}()
+	_ = s.cache.SetPaginatedReceipts(
+		ctx,
+		key,
+		paginatedReceipts,
+		5*time.Minute,
+	)
 
 	return paginatedReceipts, nil
 }
