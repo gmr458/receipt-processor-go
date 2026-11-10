@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/gmr458/receipt-processor/errs"
+	"github.com/gmr458/receipt-processor-go/errs"
 )
 
 var codes = map[string]int{
@@ -37,16 +37,17 @@ func (app *app) logError(r *http.Request, err error) {
 
 func (app *app) errorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	code := errs.ErrorCode(err)
-	message := errs.ErrorMessage(err)
-	details := errs.ErrorDetails(err)
-
 	if code == errs.EINTERNAL {
 		app.logError(r, err)
+		app.sendJSON(w, errorStatusCode(code), envelope{
+			"error":   "internal error",
+			"details": nil,
+		}, nil)
+		return
 	}
 
-	status := errorStatusCode(code)
-	app.sendJSON(w, status, envelope{
-		"error":   message,
-		"details": details,
+	app.sendJSON(w, errorStatusCode(code), envelope{
+		"error":   errs.ErrorMessage(err),
+		"details": errs.ErrorDetails(err),
 	}, nil)
 }

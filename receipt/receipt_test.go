@@ -25,26 +25,26 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Mountain Dew 12PK",
-						Price:            6.49,
+						Price:            649,
 					},
 					{
 						ShortDescription: "Emils Cheese Pizza",
-						Price:            12.25,
+						Price:            1225,
 					},
 					{
 						ShortDescription: "Knorr Creamy Chicken",
-						Price:            1.26,
+						Price:            126,
 					},
 					{
 						ShortDescription: "Doritos Nacho Cheese",
-						Price:            3.35,
+						Price:            335,
 					},
 					{
 						ShortDescription: "   Klarbrunn 12-PK 12 FL OZ  ",
-						Price:            12.00,
+						Price:            1200,
 					},
 				},
-				Total: 35.35,
+				Total: 3535,
 			},
 			expectedPointsTotal:             28,
 			expectedPointsRetailerName:      6,
@@ -63,22 +63,22 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Gatorade",
-						Price:            2.25,
+						Price:            225,
 					},
 					{
 						ShortDescription: "Gatorade",
-						Price:            2.25,
+						Price:            225,
 					},
 					{
 						ShortDescription: "Gatorade",
-						Price:            2.25,
+						Price:            225,
 					},
 					{
 						ShortDescription: "Gatorade",
-						Price:            2.25,
+						Price:            225,
 					},
 				},
-				Total: 9.00,
+				Total: 900,
 			},
 			expectedPointsTotal:             109,
 			expectedPointsRetailerName:      14,
@@ -97,10 +97,10 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Item",
-						Price:            1.00,
+						Price:            100,
 					},
 				},
-				Total: 1.00,
+				Total: 100,
 			},
 			expectedPointsTotal:             100,
 			expectedPointsRetailerName:      9,
@@ -119,10 +119,10 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Item",
-						Price:            1.00,
+						Price:            100,
 					},
 				},
-				Total: 1.00,
+				Total: 100,
 			},
 			expectedPointsTotal:             90,
 			expectedPointsRetailerName:      9,
@@ -141,10 +141,10 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Item",
-						Price:            1.00,
+						Price:            100,
 					},
 				},
-				Total: 1.00,
+				Total: 100,
 			},
 			expectedPointsTotal:             100,
 			expectedPointsRetailerName:      9,
@@ -163,10 +163,10 @@ func TestCalculatePoints(t *testing.T) {
 				Items: []Item{
 					{
 						ShortDescription: "Item",
-						Price:            1.00,
+						Price:            100,
 					},
 				},
-				Total: 1.00,
+				Total: 100,
 			},
 			expectedPointsTotal:             90,
 			expectedPointsRetailerName:      9,
@@ -204,7 +204,7 @@ func TestCalculatePoints(t *testing.T) {
 			)
 		}
 
-		totalIsMultipleOfPoints := tt.receipt.GetPointsTotalIsMultipleOf(0.25)
+		totalIsMultipleOfPoints := tt.receipt.GetPointsTotalIsMultipleOf(25)
 		if totalIsMultipleOfPoints != tt.expectedPointsTotalIsMultipleOf {
 			t.Errorf(
 				"expected total is multiple of 0.25 points to be %d. got %d",

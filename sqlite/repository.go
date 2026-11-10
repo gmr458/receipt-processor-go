@@ -1,7 +1,7 @@
 package sqlite
 
 import (
-	"github.com/gmr458/receipt-processor/receipt"
+	"github.com/gmr458/receipt-processor-go/receipt"
 )
 
 type Repository struct {

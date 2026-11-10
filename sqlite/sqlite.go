@@ -31,7 +31,7 @@ func NewConn(dsn string, log *slog.Logger) (*Conn, error) {
 		if err := os.MkdirAll(pathdir, 0o700); err != nil {
 			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
-		conn.logger.Info("sqlite3 database file created")
+		conn.logger.Info("sqlite3 database directory ready")
 	} else {
 		conn.logger.Info("using sqlite3 in memory database")
 	}
@@ -47,6 +47,11 @@ func NewConn(dsn string, log *slog.Logger) (*Conn, error) {
 	conn.DB.SetMaxIdleConns(1)
 	conn.DB.SetConnMaxLifetime(0)
 
+	if _, err := conn.DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		return nil, fmt.Errorf("error setting busy_timeout: %w", err)
+	}
+	conn.logger.Info("busy_timeout set to 5000ms")
+
 	if _, err := conn.DB.Exec(`PRAGMA journal_mode = wal;`); err != nil {
 		return nil, fmt.Errorf("error applying journal_mode = wal: %w", err)
 	}
@@ -56,11 +61,6 @@ func NewConn(dsn string, log *slog.Logger) (*Conn, error) {
 		return nil, fmt.Errorf("error enabling foreign keys: %w", err)
 	}
 	conn.logger.Info("foreign keys enabled")
-
-	if _, err := conn.DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
-		return nil, fmt.Errorf("error setting busy_timeout: %w", err)
-	}
-	conn.logger.Info("busy_timeout set to 5000ms")
 
 	if err := conn.DB.Ping(); err != nil {
 		return nil, fmt.Errorf("sqlite ping error: %w", err)

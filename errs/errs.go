@@ -29,23 +29,26 @@ func (e *Error) Error() string {
 }
 
 func ErrorCode(err error) string {
-	var e *Error
-
-	if nil == err {
+	if err == nil {
 		return ""
-	} else if errors.As(err, &e) {
+	}
+	if e, ok := errors.AsType[*Error](err); ok {
 		return e.Code
 	}
 
 	return EINTERNAL
 }
 
-func ErrorMessage(err error) string {
+func Is(err error) bool {
 	var e *Error
+	return errors.As(err, &e)
+}
 
-	if nil == err {
+func ErrorMessage(err error) string {
+	if err == nil {
 		return ""
-	} else if errors.As(err, &e) {
+	}
+	if e, ok := errors.AsType[*Error](err); ok {
 		return e.Message
 	}
 
@@ -53,11 +56,10 @@ func ErrorMessage(err error) string {
 }
 
 func ErrorDetails(err error) map[string]string {
-	var e *Error
-
-	if nil == err {
+	if err == nil {
 		return nil
-	} else if errors.As(err, &e) {
+	}
+	if e, ok := errors.AsType[*Error](err); ok {
 		return e.Details
 	}
 

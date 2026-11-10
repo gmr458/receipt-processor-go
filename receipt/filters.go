@@ -1,11 +1,12 @@
 package receipt
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"strings"
 
-	"github.com/gmr458/receipt-processor/validator"
+	"github.com/gmr458/receipt-processor-go/validator"
 )
 
 const (
@@ -30,20 +31,23 @@ func (f Filters) IsValid() (bool, map[string]string) {
 	v := validator.New()
 
 	v.Check(f.Page > 0, "page", "must be greater than zero")
-	v.Check(f.Page <= MAX_PAGE, "page", "must be a maximum if 10 million")
+	v.Check(f.Page <= MAX_PAGE, "page", "must be a maximum of 10 million")
 	v.Check(f.Limit > 0, "limit", "must be greater than zero")
-	v.Check(f.Limit <= MAX_LIMIT, "limit", "must be a maximum if 100")
+	v.Check(f.Limit <= MAX_LIMIT, "limit", "must be a maximum of 100")
 	v.Check(slices.Contains(f.SortSafeList, f.Sort), "sort", "invalid sort value")
 
 	return v.Ok(), v.Errors
 }
 
-func (f Filters) SortColumn() string {
+// SortColumn returns the sort value with its "-" direction prefix stripped.
+// IsValid must be called first; a value outside the safe list is a
+// precondition failure, reported as an error.
+func (f Filters) SortColumn() (string, error) {
 	if slices.Contains(f.SortSafeList, f.Sort) {
-		return strings.TrimPrefix(f.Sort, "-")
+		return strings.TrimPrefix(f.Sort, "-"), nil
 	}
 
-	panic("unsafe sort parameter: " + f.Sort)
+	return "", fmt.Errorf("unsafe sort parameter: %s", f.Sort)
 }
 
 func (f Filters) SortDirection() string {
@@ -59,16 +63,22 @@ func (f Filters) Offset() int {
 }
 
 type Metadata struct {
-	Page      int `json:"page,omitempty"`
-	Limit     int `json:"limit,omitempty"`
-	FirstPage int `json:"firstPage,omitempty"`
-	LastPage  int `json:"lastPage,omitempty"`
-	Total     int `json:"total,omitempty"`
+	Page      int `json:"page"`
+	Limit     int `json:"limit"`
+	FirstPage int `json:"firstPage"`
+	LastPage  int `json:"lastPage"`
+	Total     int `json:"total"`
 }
 
 func CalculateMetadata(total, page, limit int) Metadata {
 	if total == 0 {
-		return Metadata{}
+		return Metadata{
+			Page:      page,
+			Limit:     limit,
+			FirstPage: 1,
+			LastPage:  0,
+			Total:     0,
+		}
 	}
 
 	return Metadata{

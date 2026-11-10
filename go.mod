@@ -1,4 +1,4 @@
-module github.com/gmr458/receipt-processor
+module github.com/gmr458/receipt-processor-go
 
 go 1.27.3
 

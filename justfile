@@ -42,6 +42,18 @@ format:
 lint:
     golangci-lint run
 
+# Run go vet static checks.
+vet:
+    go vet ./...
+
+# Run the test suite.
+test:
+    go test ./...
+
+# Run the modernize analyzer.
+modernize:
+    go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest ./...
+
 # --------------------------------------------------------------------
 # Database migrations
 # --------------------------------------------------------------------

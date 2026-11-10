@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gmr458/receipt-processor/errs"
-	"github.com/gmr458/receipt-processor/receipt"
+	"github.com/gmr458/receipt-processor-go/errs"
+	"github.com/gmr458/receipt-processor-go/money"
+	"github.com/gmr458/receipt-processor-go/receipt"
+	"github.com/gmr458/receipt-processor-go/timefmt"
 )
 
 type ReceiptRepository struct {
@@ -36,13 +38,14 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 	rec := receipt.Receipt{Items: []receipt.Item{}}
 	var timeStr string
 	var dateStr string
+	var totalCents int64
 	row := tx.QueryRow(queryReceipt, id)
 	err = row.Scan(
 		&rec.ID,
 		&rec.Retailer,
 		&dateStr,
 		&timeStr,
-		&rec.Total,
+		&totalCents,
 	)
 	if err != nil {
 		switch {
@@ -52,16 +55,17 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 			return nil, err
 		}
 	}
-	dateParsed, err := time.Parse("2006-01-02", dateStr)
+	dateParsed, err := time.Parse(time.DateOnly, dateStr)
 	if err != nil {
 		return nil, err
 	}
-	timeParsed, err := time.Parse("15:04", timeStr)
+	timeParsed, err := time.Parse(timefmt.TimeHourMinuteOnly, timeStr)
 	if err != nil {
 		return nil, err
 	}
 	rec.PurchaseDate = dateParsed
 	rec.PurchaseTime = timeParsed
+	rec.Total = money.FromCents(totalCents)
 
 	queryItems := `
         SELECT
@@ -76,23 +80,27 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	for rows.Next() {
 		var item receipt.Item
+		var priceCents int64
 		err = rows.Scan(
 			&item.ID,
 			&item.ShortDescription,
-			&item.Price,
+			&priceCents,
 			&item.ReceiptID,
 		)
 		if err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
+		item.Price = money.FromCents(priceCents)
 
 		rec.Items = append(rec.Items, item)
 	}
+
 	err = rows.Err()
+	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +113,7 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 	return &rec, nil
 }
 
-func (r ReceiptRepository) Create(ctx context.Context, receipt *receipt.Receipt) error {
+func (r ReceiptRepository) Create(ctx context.Context, rec *receipt.Receipt) error {
 	tx, err := r.conn.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -122,31 +130,33 @@ func (r ReceiptRepository) Create(ctx context.Context, receipt *receipt.Receipt)
         ) VALUES (?, ?, ?, ?, ?)
     `
 	args := []any{
-		receipt.ID,
-		receipt.Retailer,
-		receipt.PurchaseDate.Format("2006-01-02"),
-		receipt.PurchaseTime.Format("15:04"),
-		receipt.Total,
+		rec.ID,
+		rec.Retailer,
+		rec.PurchaseDate.Format(time.DateOnly),
+		rec.PurchaseTime.Format(timefmt.TimeHourMinuteOnly),
+		int64(rec.Total),
 	}
 	_, err = tx.ExecContext(ctx, queryReceipt, args...)
 	if err != nil {
 		return err
 	}
 
-	argsItems := make([]any, 0, len(receipt.Items)*4)
-	var queryItems strings.Builder
-	queryItems.Grow(70 + (len(receipt.Items) * 10))
-	queryItems.WriteString("INSERT INTO item (id, short_description, price, receipt_id) VALUES ")
-	for k, v := range receipt.Items {
-		if k > 0 {
-			queryItems.WriteString(",")
+	if len(rec.Items) > 0 {
+		argsItems := make([]any, 0, len(rec.Items)*4)
+		var queryItems strings.Builder
+		queryItems.Grow(70 + (len(rec.Items) * 10))
+		queryItems.WriteString("INSERT INTO item (id, short_description, price, receipt_id) VALUES ")
+		for k, v := range rec.Items {
+			if k > 0 {
+				queryItems.WriteString(",")
+			}
+			queryItems.WriteString("(?,?,?,?)")
+			argsItems = append(argsItems, v.ID, v.ShortDescription, int64(v.Price), rec.ID)
 		}
-		queryItems.WriteString("(?,?,?,?)")
-		argsItems = append(argsItems, v.ID, v.ShortDescription, v.Price, receipt.ID)
-	}
-	_, err = tx.ExecContext(ctx, queryItems.String(), argsItems...)
-	if err != nil {
-		return err
+		_, err = tx.ExecContext(ctx, queryItems.String(), argsItems...)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = tx.Commit()
@@ -161,8 +171,19 @@ func (r ReceiptRepository) Find(
 	ctx context.Context,
 	filters receipt.Filters,
 ) (receipt.PaginatedReceipts, error) {
+	tx, err := r.conn.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var total int
-	err := r.conn.DB.QueryRowContext(ctx, "SELECT count(*) FROM receipt").Scan(&total)
+	err = tx.QueryRowContext(ctx, "SELECT count(*) FROM receipt").Scan(&total)
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
+	}
+
+	sortColumn, err := filters.SortColumn()
 	if err != nil {
 		return receipt.PaginatedReceipts{}, err
 	}
@@ -177,11 +198,11 @@ func (r ReceiptRepository) Find(
         FROM receipt
         ORDER BY %s %s
         LIMIT ? OFFSET ?`,
-		filters.SortColumn(),
+		sortColumn,
 		filters.SortDirection(),
 	)
 
-	rows, err := r.conn.DB.QueryContext(
+	rows, err := tx.QueryContext(
 		ctx,
 		queryReceipts,
 		filters.Limit,
@@ -190,7 +211,6 @@ func (r ReceiptRepository) Find(
 	if err != nil {
 		return receipt.PaginatedReceipts{}, err
 	}
-	defer rows.Close()
 
 	receipts := make([]receipt.Receipt, 0, filters.Limit)
 	receiptIDs := make([]string, 0, filters.Limit)
@@ -199,89 +219,98 @@ func (r ReceiptRepository) Find(
 		var rec receipt.Receipt
 		var timeStr string
 		var dateStr string
+		var totalCents int64
 		err = rows.Scan(
 			&rec.ID,
 			&rec.Retailer,
 			&dateStr,
 			&timeStr,
-			&rec.Total,
+			&totalCents,
 		)
 		if err != nil {
+			_ = rows.Close()
 			return receipt.PaginatedReceipts{}, err
 		}
-		dateParsed, err := time.Parse("2006-01-02", dateStr)
+		dateParsed, err := time.Parse(time.DateOnly, dateStr)
 		if err != nil {
+			_ = rows.Close()
 			return receipt.PaginatedReceipts{}, err
 		}
-		timeParsed, err := time.Parse("15:04", timeStr)
+		timeParsed, err := time.Parse(timefmt.TimeHourMinuteOnly, timeStr)
 		if err != nil {
+			_ = rows.Close()
 			return receipt.PaginatedReceipts{}, err
 		}
 		rec.PurchaseDate = dateParsed
 		rec.PurchaseTime = timeParsed
+		rec.Total = money.FromCents(totalCents)
 		rec.Items = []receipt.Item{}
 		receipts = append(receipts, rec)
 		receiptIDs = append(receiptIDs, rec.ID)
 	}
 
 	err = rows.Err()
+	_ = rows.Close()
 	if err != nil {
 		return receipt.PaginatedReceipts{}, err
 	}
 
-	if len(receipts) == 0 {
-		return receipt.PaginatedReceipts{
-			Receipts: receipts,
-			Metadata: nil,
-		}, nil
-	}
-
-	queryItems := fmt.Sprintf(
-		`SELECT
+	itemsByReceiptID := make(map[string][]receipt.Item, filters.Limit)
+	if len(receiptIDs) > 0 {
+		queryItems := fmt.Sprintf(
+			`SELECT
             id,
             short_description,
             price,
             receipt_id
         FROM item
         WHERE receipt_id IN (%s)`,
-		strings.Repeat("?,", len(receiptIDs)-1)+"?",
-	)
-
-	args := make([]any, len(receiptIDs))
-	for i, id := range receiptIDs {
-		args[i] = id
-	}
-
-	itemRows, err := r.conn.DB.QueryContext(ctx, queryItems, args...)
-	if err != nil {
-		return receipt.PaginatedReceipts{}, err
-	}
-	defer itemRows.Close()
-
-	itemsByReceiptID := make(map[string][]receipt.Item, filters.Limit)
-	for itemRows.Next() {
-		var item receipt.Item
-		err = itemRows.Scan(
-			&item.ID,
-			&item.ShortDescription,
-			&item.Price,
-			&item.ReceiptID,
+			strings.Repeat("?,", len(receiptIDs)-1)+"?",
 		)
+
+		args := make([]any, len(receiptIDs))
+		for i, id := range receiptIDs {
+			args[i] = id
+		}
+
+		itemRows, err := tx.QueryContext(ctx, queryItems, args...)
 		if err != nil {
 			return receipt.PaginatedReceipts{}, err
 		}
-		itemsByReceiptID[item.ReceiptID] = append(itemsByReceiptID[item.ReceiptID], item)
-	}
 
-	err = itemRows.Err()
-	if err != nil {
-		return receipt.PaginatedReceipts{}, err
+		for itemRows.Next() {
+			var item receipt.Item
+			var priceCents int64
+			err = itemRows.Scan(
+				&item.ID,
+				&item.ShortDescription,
+				&priceCents,
+				&item.ReceiptID,
+			)
+			if err != nil {
+				_ = itemRows.Close()
+				return receipt.PaginatedReceipts{}, err
+			}
+			item.Price = money.FromCents(priceCents)
+			itemsByReceiptID[item.ReceiptID] = append(itemsByReceiptID[item.ReceiptID], item)
+		}
+
+		err = itemRows.Err()
+		_ = itemRows.Close()
+		if err != nil {
+			return receipt.PaginatedReceipts{}, err
+		}
 	}
 
 	for i := range receipts {
 		if items, ok := itemsByReceiptID[receipts[i].ID]; ok {
 			receipts[i].Items = items
 		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
 	}
 
 	metadata := receipt.CalculateMetadata(total, filters.Page, filters.Limit)

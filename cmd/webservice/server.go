@@ -58,9 +58,6 @@ func (app *app) setupShutdown(server *http.Server, serverName string) chan error
 			return
 		}
 
-		app.logger.Info("completing background tasks", "addr", server.Addr)
-
-		app.wg.Wait()
 		shutdownError <- nil
 	}()
 

@@ -18,18 +18,11 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      # `nix fmt` formats every .nix file in the repo; treefmt-wrapped so it
-      # works with no arguments.
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
 
       devShells = forAllSystems (
         pkgs:
         let
-          # nixpkgs' go-migrate compiles in every DB driver; the bundled
-          # snowflake driver panics in init() ("failed to parse CA
-          # certificate") in a nix store build. Only the postgres/pgx tags
-          # this project needs are kept. Build tags don't affect vendor
-          # hashes, so this stays on nixpkgs' pinned sources.
           goMigrate = pkgs.go-migrate.overrideAttrs (old: {
             tags = [
               "postgres"
@@ -38,27 +31,22 @@
             ];
           });
 
+          delve = pkgs.delve.override {
+            buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27; };
+          };
+
           devServices = pkgs.writeShellScriptBin "dev-services" ''
             set -euo pipefail
 
-            # Anchor to the repo root so running from a subdirectory still uses
-            # the same data dir. Data/logs live in ./.nix-dev; the top-level
-            # .gitignore rule ("ignore everything unless allow-listed") keeps it
-            # out of git.
             root="$(${pkgs.git}/bin/git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
             devDir="$root/.nix-dev"
 
-            # Overridable ports (avoid colliding with system Postgres/Redis).
             pgPort="''${PG_PORT:-5432}"
             valkeyPort="''${VALKEY_PORT:-6379}"
             devDbName="receipt_processor"
 
             pgData="$devDir/postgres"
             logDir="$devDir/log"
-            # Unix socket paths are limited to ~107 bytes, so a deep checkout
-            # could break a project-local socket dir. Nothing connects over the
-            # socket (app + psql use TCP), so keep it short and per-user:
-            # $TMPDIR if set, else /tmp.
             socketDir="''${TMPDIR:-/tmp}/rp-go-dev-''$(id -u)"
             valkeyDir="$devDir/valkey"
 
@@ -70,9 +58,6 @@
                 if [ ! -e "$pgData/PG_VERSION" ]; then
                   echo "postgres: initializing data directory $pgData -- first run"
                   mkdir -p "$pgData"
-                  # Trust auth (single-user dev cluster): connections with any
-                  # password are accepted, so the app's default DSN with
-                  # "postgres:postgres" works unchanged.
                   ${pkgs.postgresql_18}/bin/initdb -D "$pgData" -U postgres --auth=trust --no-locale --encoding=UTF8
                 fi
 
@@ -99,9 +84,6 @@
                     --dir "$valkeyDir" \
                     --pidfile "$valkeyDir/valkey.pid" \
                     --logfile "$logDir/valkey.log"
-                  # daemonize returns before the server listens; wait until it
-                  # answers PING so `dev-services start && ... (something else)`
-                  # actually yields ready services.
                   i=0
                   until ${pkgs.valkey}/bin/valkey-cli -h 127.0.0.1 -p "$valkeyPort" ping >/dev/null 2>&1; do
                     i=$((i + 1))
@@ -155,23 +137,20 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
-              go_1_27 # 1.27.x — go.mod targets Go 1.27
-              gopls # go language server for editors
-              delve # go debugger
-              just # build/tasks runner (justfile)
-              git # used by `just version` (git describe) and everyday work
-              goMigrate # golang-migrate CLI (only postgres/pgx drivers, see above)
-              nixfmt # Nix formatter (RFC 166 style) for editor integration
-              golangci-lint # go linter aggregator (run via `just lint`)
-              postgresql_18 # psql + server — run via `dev-services start`
-              valkey # BSD-licensed redis-compatible server — run via `dev-services start`
+              go_1_27
+              gopls
+              delve
+              just
+              git
+              goMigrate
+              nixfmt
+              golangci-lint
+              postgresql_18
+              valkey
               devServices
             ];
 
             shellHook = ''
-              # The app defaults to this DSN, but the justfile's migrate recipes
-              # read $DSN directly — make it available there too. Set in .env to
-              # override.
               export DSN="''${DSN:-postgres://postgres:postgres@localhost:5432/receipt_processor?sslmode=disable}"
 
               echo "dev shell: go + postgres/valkey ready — run \`dev-services start\`"

@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -44,12 +45,12 @@ type TokenBucket struct {
 	ttlMs  int64
 }
 
-func NewTokenBucket(client *redis.Client, rps float64, burst int) *TokenBucket {
+func NewTokenBucket(client *redis.Client, rps float64, burst int) (*TokenBucket, error) {
 	if rps <= 0 {
-		panic("ratelimiter: rps must be positive")
+		return nil, fmt.Errorf("ratelimiter: rps must be positive, got %v", rps)
 	}
 	if burst <= 0 {
-		panic("ratelimiter: burst must be positive")
+		return nil, fmt.Errorf("ratelimiter: burst must be positive, got %d", burst)
 	}
 
 	return &TokenBucket{
@@ -58,7 +59,7 @@ func NewTokenBucket(client *redis.Client, rps float64, burst int) *TokenBucket {
 		rps:    rps,
 		burst:  burst,
 		ttlMs:  int64(math.Ceil(float64(burst)/rps*1000)) + 60000,
-	}
+	}, nil
 }
 
 func (tb *TokenBucket) Allow(ctx context.Context, key string) (bool, time.Duration, error) {

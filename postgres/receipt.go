@@ -8,8 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/gmr458/receipt-processor/errs"
-	"github.com/gmr458/receipt-processor/receipt"
+	"github.com/gmr458/receipt-processor-go/errs"
+	"github.com/gmr458/receipt-processor-go/money"
+	"github.com/gmr458/receipt-processor-go/receipt"
 )
 
 type ReceiptRepository struct {
@@ -34,13 +35,14 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
         WHERE id = $1
     `
 	rec := receipt.Receipt{Items: []receipt.Item{}}
+	var totalCents int64
 	row := tx.QueryRow(ctx, queryReceipt, id)
 	err = row.Scan(
 		&rec.ID,
 		&rec.Retailer,
 		&rec.PurchaseDate,
 		&rec.PurchaseTime,
-		&rec.Total,
+		&totalCents,
 	)
 	if err != nil {
 		switch {
@@ -50,6 +52,7 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 			return nil, err
 		}
 	}
+	rec.Total = money.FromCents(totalCents)
 
 	queryItems := `
         SELECT
@@ -67,16 +70,18 @@ func (r ReceiptRepository) FindById(ctx context.Context, id string) (*receipt.Re
 
 	for rows.Next() {
 		var item receipt.Item
+		var priceCents int64
 		err = rows.Scan(
 			&item.ID,
 			&item.ShortDescription,
-			&item.Price,
+			&priceCents,
 			&item.ReceiptID,
 		)
 		if err != nil {
 			rows.Close()
 			return nil, err
 		}
+		item.Price = money.FromCents(priceCents)
 
 		rec.Items = append(rec.Items, item)
 	}
@@ -115,7 +120,7 @@ func (r ReceiptRepository) Create(ctx context.Context, rec *receipt.Receipt) err
 		rec.Retailer,
 		rec.PurchaseDate,
 		rec.PurchaseTime,
-		rec.Total,
+		int64(rec.Total),
 	)
 	if err != nil {
 		return err
@@ -131,8 +136,8 @@ func (r ReceiptRepository) Create(ctx context.Context, rec *receipt.Receipt) err
 				queryItems.WriteString(",")
 			}
 			offset := k * 4
-			queryItems.WriteString(fmt.Sprintf("($%d,$%d,$%d,$%d)", offset+1, offset+2, offset+3, offset+4))
-			argsItems = append(argsItems, v.ID, v.ShortDescription, v.Price, rec.ID)
+			fmt.Fprintf(&queryItems, "($%d,$%d,$%d,$%d)", offset+1, offset+2, offset+3, offset+4)
+			argsItems = append(argsItems, v.ID, v.ShortDescription, int64(v.Price), rec.ID)
 		}
 		_, err = tx.Exec(ctx, queryItems.String(), argsItems...)
 		if err != nil {
@@ -152,8 +157,19 @@ func (r ReceiptRepository) Find(
 	ctx context.Context,
 	filters receipt.Filters,
 ) (receipt.PaginatedReceipts, error) {
+	tx, err := r.conn.Pool.Begin(ctx)
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var total int
-	err := r.conn.Pool.QueryRow(ctx, "SELECT count(*) FROM receipt").Scan(&total)
+	err = tx.QueryRow(ctx, "SELECT count(*) FROM receipt").Scan(&total)
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
+	}
+
+	sortColumn, err := filters.SortColumn()
 	if err != nil {
 		return receipt.PaginatedReceipts{}, err
 	}
@@ -168,11 +184,11 @@ func (r ReceiptRepository) Find(
         FROM receipt
         ORDER BY %s %s
         LIMIT $1 OFFSET $2`,
-		filters.SortColumn(),
+		sortColumn,
 		filters.SortDirection(),
 	)
 
-	rows, err := r.conn.Pool.Query(
+	rows, err := tx.Query(
 		ctx,
 		queryReceipts,
 		filters.Limit,
@@ -187,17 +203,19 @@ func (r ReceiptRepository) Find(
 
 	for rows.Next() {
 		var rec receipt.Receipt
+		var totalCents int64
 		err = rows.Scan(
 			&rec.ID,
 			&rec.Retailer,
 			&rec.PurchaseDate,
 			&rec.PurchaseTime,
-			&rec.Total,
+			&totalCents,
 		)
 		if err != nil {
 			rows.Close()
 			return receipt.PaginatedReceipts{}, err
 		}
+		rec.Total = money.FromCents(totalCents)
 		rec.Items = []receipt.Item{}
 		receipts = append(receipts, rec)
 		receiptIDs = append(receiptIDs, rec.ID)
@@ -208,59 +226,61 @@ func (r ReceiptRepository) Find(
 		return receipt.PaginatedReceipts{}, err
 	}
 
-	if len(receipts) == 0 {
-		return receipt.PaginatedReceipts{
-			Receipts: receipts,
-			Metadata: nil,
-		}, nil
-	}
-
-	queryItems := fmt.Sprintf(
-		`SELECT
+	itemsByReceiptID := make(map[string][]receipt.Item, filters.Limit)
+	if len(receiptIDs) > 0 {
+		queryItems := fmt.Sprintf(
+			`SELECT
             id,
             short_description,
             price,
             receipt_id
         FROM item
         WHERE receipt_id IN (%s)`,
-		pgPlaceholders(1, len(receiptIDs)),
-	)
-
-	args := make([]any, len(receiptIDs))
-	for i, id := range receiptIDs {
-		args[i] = id
-	}
-
-	itemRows, err := r.conn.Pool.Query(ctx, queryItems, args...)
-	if err != nil {
-		return receipt.PaginatedReceipts{}, err
-	}
-
-	itemsByReceiptID := make(map[string][]receipt.Item, filters.Limit)
-	for itemRows.Next() {
-		var item receipt.Item
-		err = itemRows.Scan(
-			&item.ID,
-			&item.ShortDescription,
-			&item.Price,
-			&item.ReceiptID,
+			pgPlaceholders(1, len(receiptIDs)),
 		)
+
+		args := make([]any, len(receiptIDs))
+		for i, id := range receiptIDs {
+			args[i] = id
+		}
+
+		itemRows, err := tx.Query(ctx, queryItems, args...)
 		if err != nil {
-			itemRows.Close()
 			return receipt.PaginatedReceipts{}, err
 		}
-		itemsByReceiptID[item.ReceiptID] = append(itemsByReceiptID[item.ReceiptID], item)
-	}
-	err = itemRows.Err()
-	itemRows.Close()
-	if err != nil {
-		return receipt.PaginatedReceipts{}, err
+
+		for itemRows.Next() {
+			var item receipt.Item
+			var priceCents int64
+			err = itemRows.Scan(
+				&item.ID,
+				&item.ShortDescription,
+				&priceCents,
+				&item.ReceiptID,
+			)
+			if err != nil {
+				itemRows.Close()
+				return receipt.PaginatedReceipts{}, err
+			}
+			item.Price = money.FromCents(priceCents)
+			itemsByReceiptID[item.ReceiptID] = append(itemsByReceiptID[item.ReceiptID], item)
+		}
+		err = itemRows.Err()
+		itemRows.Close()
+		if err != nil {
+			return receipt.PaginatedReceipts{}, err
+		}
 	}
 
 	for i := range receipts {
 		if items, ok := itemsByReceiptID[receipts[i].ID]; ok {
 			receipts[i].Items = items
 		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return receipt.PaginatedReceipts{}, err
 	}
 
 	metadata := receipt.CalculateMetadata(total, filters.Page, filters.Limit)
@@ -274,7 +294,7 @@ func (r ReceiptRepository) Find(
 // pgPlaceholders produces "$1,$2,..." starting at the given offset.
 func pgPlaceholders(start, count int) string {
 	placeholders := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		placeholders = append(placeholders, fmt.Sprintf("$%d", start+i))
 	}
 	return strings.Join(placeholders, ",")

@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func (api *app) recoverPanic(next http.Handler) http.Handler {
+func (app *app) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			rec := recover()
@@ -32,30 +32,30 @@ func (api *app) recoverPanic(next http.Handler) http.Handler {
 			}
 
 			w.Header().Set("Connection", "close")
-			api.errorResponse(w, r, err)
+			app.errorResponse(w, r, err)
 		}()
 
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (api *app) rateLimit(next http.Handler) http.Handler {
+func (app *app) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if api.config.limiter.enabled {
-			ip, err := clientIP(r, api.config.limiter.trustedProxyHeader)
+		if app.config.limiter.enabled {
+			ip, err := clientIP(r, app.config.limiter.trustedProxyHeader)
 			if err != nil {
-				api.errorResponse(w, r, err)
+				app.errorResponse(w, r, err)
 				return
 			}
 
-			allowed, retryAfter, err := api.rateLimiter.Allow(r.Context(), "ratelimit:"+ip)
+			allowed, retryAfter, err := app.rateLimiter.Allow(r.Context(), "ratelimit:"+ip)
 			if err != nil {
-				api.errorResponse(w, r, err)
+				app.errorResponse(w, r, err)
 				return
 			}
 
 			if !allowed {
-				api.tooManyRequests(w, retryAfter)
+				app.tooManyRequests(w, retryAfter)
 				return
 			}
 		}

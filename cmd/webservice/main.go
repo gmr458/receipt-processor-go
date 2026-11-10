@@ -11,8 +11,8 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/gmr458/receipt-processor/env"
-	"github.com/gmr458/receipt-processor/postgres"
+	"github.com/gmr458/receipt-processor-go/env"
+	"github.com/gmr458/receipt-processor-go/postgres"
 )
 
 var version string
@@ -27,27 +27,69 @@ func main() {
 	}
 
 	var cfg config
-
-	cfg.host = env.GetenvOrDefault("HOST", "127.0.0.1")
-	cfg.port = env.GetenvOrDefault("PORT", 4000)
-
-	cfg.env = env.GetenvOrDefault("ENV", "development")
-
-	cfg.db.dsn = env.GetenvOrDefault("DSN", "postgres://postgres:postgres@localhost:5432/receipt_processor?sslmode=disable")
-
-	trustedOrigins := env.Getenv[string]("CORS_TRUSTED_ORIGINS")
-	cfg.cors.trustedOrigins = strings.Fields(trustedOrigins)
-
-	cfg.limiter.enabled = env.GetenvOrDefault("LIMITER_ENABLED", true)
-	cfg.limiter.rps = env.GetenvOrDefault("LIMITER_RPS", 10.0)
-	cfg.limiter.burst = env.GetenvOrDefault("LIMITER_BURST", 20)
-	cfg.limiter.trustedProxyHeader = env.GetenvOrDefault("TRUSTED_PROXY_HEADER", "")
-
-	cfg.redis.addr = env.GetenvOrDefault("REDIS_ADDR", "localhost:6379")
-	cfg.redis.password = env.Getenv[string]("REDIS_PASSWORD")
-	cfg.redis.db = env.GetenvOrDefault("REDIS_DB", 0)
+	var err error
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	fail := func(err error) {
+		logger.Error("invalid environment configuration", "error", err)
+		os.Exit(1)
+	}
+
+	cfg.host, err = env.GetenvOrDefault("HOST", "127.0.0.1")
+	if err != nil {
+		fail(err)
+	}
+	cfg.port, err = env.GetenvOrDefault("PORT", 4000)
+	if err != nil {
+		fail(err)
+	}
+
+	cfg.env, err = env.GetenvOrDefault("ENV", "development")
+	if err != nil {
+		fail(err)
+	}
+
+	cfg.db.dsn, err = env.GetenvOrDefault("DSN", "postgres://postgres:postgres@localhost:5432/receipt_processor?sslmode=disable")
+	if err != nil {
+		fail(err)
+	}
+
+	trustedOrigins, err := env.Getenv[string]("CORS_TRUSTED_ORIGINS")
+	if err != nil {
+		fail(err)
+	}
+	cfg.cors.trustedOrigins = strings.Fields(trustedOrigins)
+
+	cfg.limiter.enabled, err = env.GetenvOrDefault("LIMITER_ENABLED", true)
+	if err != nil {
+		fail(err)
+	}
+	cfg.limiter.rps, err = env.GetenvOrDefault("LIMITER_RPS", 10.0)
+	if err != nil {
+		fail(err)
+	}
+	cfg.limiter.burst, err = env.GetenvOrDefault("LIMITER_BURST", 20)
+	if err != nil {
+		fail(err)
+	}
+	cfg.limiter.trustedProxyHeader, err = env.GetenvOrDefault("TRUSTED_PROXY_HEADER", "")
+	if err != nil {
+		fail(err)
+	}
+
+	cfg.redis.addr, err = env.GetenvOrDefault("REDIS_ADDR", "localhost:6379")
+	if err != nil {
+		fail(err)
+	}
+	cfg.redis.password, err = env.GetenvOrDefault("REDIS_PASSWORD", "")
+	if err != nil {
+		fail(err)
+	}
+	cfg.redis.db, err = env.GetenvOrDefault("REDIS_DB", 0)
+	if err != nil {
+		fail(err)
+	}
 
 	postgresConn, err := postgres.NewConn(cfg.db.dsn, logger)
 	if err != nil {
@@ -68,12 +110,16 @@ func main() {
 	}
 	logger.Info("redis connection established")
 
-	app := newApp(
+	app, err := newApp(
 		cfg,
 		logger,
 		postgresConn,
 		redisClient,
 	)
+	if err != nil {
+		logger.Error("failed to create application", "error", err)
+		os.Exit(1)
+	}
 
 	err = app.serve()
 	if err != nil {

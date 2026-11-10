@@ -18,8 +18,8 @@ const (
 	loggerCtxKey
 )
 
-// requestIDFromContext returns the request ID stored by requestLogger, if any.
-func requestIDFromContext(ctx context.Context) string {
+// RequestIDFromContext returns the request ID stored by requestLogger, if any.
+func RequestIDFromContext(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDCtxKey).(string)
 	return id
 }

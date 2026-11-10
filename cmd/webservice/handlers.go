@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/gmr458/receipt-processor/receipt"
+	"github.com/gmr458/receipt-processor-go/receipt"
 )
 
 func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,7 @@ func (app *app) handlerProcessReceipts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.sendJSON(w, http.StatusCreated, envelope{
+	app.sendJSON(w, http.StatusOK, envelope{
 		"id": receipt.ID,
 	}, nil)
 }
@@ -47,8 +47,9 @@ func (app *app) handlerGetPoints(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *app) handlerGetReceipts(w http.ResponseWriter, r *http.Request) {
-	queryValues := r.URL.Query()
-	filters := receipt.NewFilters(
+	filters, err := NewFiltersFromURL(
+		r.URL.Query(),
+		"purchase_date",
 		"id",
 		"-id",
 		"retailer",
@@ -58,9 +59,10 @@ func (app *app) handlerGetReceipts(w http.ResponseWriter, r *http.Request) {
 		"total",
 		"-total",
 	)
-	filters.Page = getURLValuePositiveInt(queryValues, "page", 1)
-	filters.Limit = getURLValuePositiveInt(queryValues, "limit", 10)
-	filters.Sort = getURLValueStr(queryValues, filters.SortSafeList, "sort", "purchase_date")
+	if err != nil {
+		app.errorResponse(w, r, err)
+		return
+	}
 
 	paginatedReceipts, err := app.receiptService.GetReceipts(r.Context(), filters)
 	if err != nil {

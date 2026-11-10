@@ -2,33 +2,31 @@ package receipt
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/gmr458/receipt-processor/errs"
+	"github.com/gmr458/receipt-processor-go/errs"
+	"github.com/gmr458/receipt-processor-go/timefmt"
 )
 
 type Service struct {
 	repository ReceiptRepository
-	cache      ReceiptCache
 }
 
-func NewService(repository ReceiptRepository, cache ReceiptCache) Service {
+func NewService(repository ReceiptRepository) Service {
 	return Service{
 		repository,
-		cache,
 	}
 }
 
 func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error) {
-	isValid, errors := dto.IsValid()
+	isValid, validationErrors := dto.IsValid()
 	if !isValid {
 		return nil, &errs.Error{
 			Code:    errs.EINVALID,
-			Message: "Invalid field/s",
-			Details: errors,
+			Message: "Invalid field(s)",
+			Details: validationErrors,
 		}
 	}
 
@@ -38,29 +36,17 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 		Total:    dto.Total,
 		Items:    make([]Item, 0, len(dto.Items)),
 	}
-	parsedDate, err := time.Parse("2006-01-02", dto.PurchaseDate)
-	if err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: "Invalid field/s",
-			Details: map[string]string{
-				"purchaseDate": "invalid format, it should be YYYY-MM-DD",
-			},
-		}
-	}
-	rec.PurchaseDate = parsedDate
 
-	parsedTime, err := time.Parse("15:04", dto.PurchaseTime)
+	var err error
+	rec.PurchaseDate, err = time.Parse(time.DateOnly, dto.PurchaseDate)
 	if err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: "Invalid field/s",
-			Details: map[string]string{
-				"purchaseTime": "invalid format, it should be hh:mm",
-			},
-		}
+		return nil, errs.Errorf(errs.EINTERNAL, "validated purchaseDate %q failed to parse: %v", dto.PurchaseDate, err)
 	}
-	rec.PurchaseTime = parsedTime
+
+	rec.PurchaseTime, err = time.Parse(timefmt.TimeHourMinuteOnly, dto.PurchaseTime)
+	if err != nil {
+		return nil, errs.Errorf(errs.EINTERNAL, "validated purchaseTime %q failed to parse: %v", dto.PurchaseTime, err)
+	}
 
 	for _, itemDto := range dto.Items {
 		item := Item{
@@ -76,27 +62,13 @@ func (s *Service) Process(ctx context.Context, dto ReceiptDTO) (*Receipt, error)
 		return nil, err
 	}
 
-	_ = s.cache.DeletePaginatedReceipts(ctx)
-
-	_ = s.cache.SetPointsById(
-		ctx,
-		rec.ID,
-		rec.CalculateTotalPoints(),
-		5*time.Minute,
-	)
-
 	return rec, nil
 }
 
 func (s *Service) GetPointsById(ctx context.Context, id string) (int, error) {
 	err := uuid.Validate(id)
 	if err != nil {
-		return 0, &errs.Error{Code: errs.ENOTFOUND, Message: "Receipt not found"}
-	}
-
-	points, err := s.cache.GetPointsById(ctx, id)
-	if nil == err {
-		return points, nil
+		return 0, &errs.Error{Code: errs.EINVALID, Message: "Invalid receipt id"}
 	}
 
 	receipt, err := s.repository.FindById(ctx, id)
@@ -104,54 +76,21 @@ func (s *Service) GetPointsById(ctx context.Context, id string) (int, error) {
 		return 0, err
 	}
 
-	points = receipt.CalculateTotalPoints()
-
-	_ = s.cache.SetPointsById(
-		ctx,
-		receipt.ID,
-		points,
-		5*time.Minute,
-	)
-
-	return points, nil
+	return receipt.CalculateTotalPoints(), nil
 }
 
 func (s *Service) GetReceipts(
 	ctx context.Context,
 	filters Filters,
 ) (PaginatedReceipts, error) {
-	isValid, errors := filters.IsValid()
+	isValid, validationErrors := filters.IsValid()
 	if !isValid {
 		return PaginatedReceipts{}, &errs.Error{
 			Code:    errs.EINVALID,
 			Message: "Invalid filter params",
-			Details: errors,
+			Details: validationErrors,
 		}
 	}
 
-	key := fmt.Sprintf(
-		"receipts:page:%d:limit:%d:sort:%s",
-		filters.Page,
-		filters.Limit,
-		filters.Sort,
-	)
-
-	paginatedReceipts, err := s.cache.GetPaginatedReceipts(ctx, key)
-	if nil == err {
-		return paginatedReceipts, nil
-	}
-
-	paginatedReceipts, err = s.repository.Find(ctx, filters)
-	if err != nil {
-		return PaginatedReceipts{}, err
-	}
-
-	_ = s.cache.SetPaginatedReceipts(
-		ctx,
-		key,
-		paginatedReceipts,
-		5*time.Minute,
-	)
-
-	return paginatedReceipts, nil
+	return s.repository.Find(ctx, filters)
 }

@@ -5,18 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 
-	"github.com/gmr458/receipt-processor/errs"
+	"github.com/gmr458/receipt-processor-go/errs"
+	"github.com/gmr458/receipt-processor-go/money"
 )
 
 type envelope map[string]any
 
-func (api *app) sendJSON(w http.ResponseWriter, status int, data any, headers http.Header) {
+func (app *app) sendJSON(w http.ResponseWriter, status int, data any, headers http.Header) {
 	js, err := json.Marshal(data)
 	if err != nil {
-		api.logger.Error(err.Error())
+		app.logger.Error(err.Error())
 		http.Error(
 			w,
 			http.StatusText(http.StatusInternalServerError),
@@ -25,14 +27,12 @@ func (api *app) sendJSON(w http.ResponseWriter, status int, data any, headers ht
 		return
 	}
 
-	for key, value := range headers {
-		w.Header()[key] = value
-	}
+	maps.Copy(w.Header(), headers)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(js); err != nil {
-		api.logger.Error("failed to write response body: " + err.Error())
+		app.logger.Error("failed to write response body: " + err.Error())
 	}
 }
 
@@ -90,6 +90,12 @@ func (app *app) readJSON(w http.ResponseWriter, r *http.Request, dst any) error 
 
 		case errors.As(err, &maxBytesError):
 			return errs.Errorf(errs.EINVALID, "body must not be larger than %d bytes", maxBytesError.Limit)
+
+		case errors.Is(err, money.ErrInvalidFormat), errors.Is(err, money.ErrOverflow):
+			return errs.Errorf(errs.EINVALID, "%s", err.Error())
+
+		case errs.Is(err):
+			return err
 
 		case errors.As(err, &invalidUnmarshalError):
 			panic(fmt.Sprintf("readJSON: invalid unmarshal target: %v", err))
